@@ -583,67 +583,70 @@ class When_Last_Login {
      * @since 1.0.0
      */
     public function wll_automatically_remove_logs() {
-      global $pagenow;
+      global $pagenow, $wpdb;
 
-        // Bail if not on our settings page.
-        if ( 'admin.php' == $pagenow && 'when-last-login-settings' != $_GET['page'] ) {
-          return;
-        }
+      // Bail if there is not ?page=xxx parameter
+      if ( empty( $_GET['page'] ) ) {
+        return;
+      }
 
-        global $wpdb;
+      // Bail if not on our settings page
+      if ( 'admin.php' == $pagenow && 'when-last-login-settings' != $_GET['page'] ) {
+        return;
+      }
       
-        $sql = "DELETE p, pm FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta pm ON pm.post_id = p.ID WHERE p.post_type = 'wll_records'";
+      $sql = "DELETE p, pm FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta pm ON pm.post_id = p.ID WHERE p.post_type = 'wll_records'";
 
-        if ( isset( $_REQUEST['remove_all_wll_records'] ) ) {
+      if ( isset( $_REQUEST['remove_all_wll_records'] ) ) {
 
-          $nonce = $_REQUEST['wll_remove_all_records_nonce'];
-          if ( wp_verify_nonce( $nonce, 'wll_remove_all_records_nonce' ) ) {
+        $nonce = $_REQUEST['wll_remove_all_records_nonce'];
+        if ( wp_verify_nonce( $nonce, 'wll_remove_all_records_nonce' ) ) {
 
-            if ( $wpdb->query( $sql ) > 0 ) {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
-            } else {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
-            }
+          if ( $wpdb->query( $sql ) > 0 ) {
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
           } else {
-            die( 'nonce not valid.' );
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
           }
+        } else {
+          die( 'nonce not valid.' );
         }
+      }
 
-        if ( isset( $_REQUEST['remove_wll_records'] ) ) {
+      if ( isset( $_REQUEST['remove_wll_records'] ) ) {
 
-          $nonce = $_REQUEST['wll_remove_records_nonce'];
-          if ( wp_verify_nonce( $nonce, 'wll_remove_records_nonce' ) ) {
+        $nonce = $_REQUEST['wll_remove_records_nonce'];
+        if ( wp_verify_nonce( $nonce, 'wll_remove_records_nonce' ) ) {
 
-            $date = apply_filters( 'wll_automatically_remove_logs_date', date( 'Y-m-d', strtotime( '-3 months' ) ) );
+          $date = apply_filters( 'wll_automatically_remove_logs_date', date( 'Y-m-d', strtotime( '-3 months' ) ) );
 
-            $sql .= " AND p.post_date <= '$date'";
+          $sql .= " AND p.post_date <= '$date'";
 
-            if ( $wpdb->query( $sql ) > 0 ) {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
-            } else {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
-            }
+          if ( $wpdb->query( $sql ) > 0 ) {
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
           } else {
-            die( 'nonce not valid.' );
-          } 
-        }
-
-        if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
-
-          $nonce = $_REQUEST['wll_remove_ip_nonce'];
-          if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
-
-            $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
-
-            if ( $wpdb->query( $sql ) > 0 ) {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
-            } else {
-              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
-            }
-          } else {
-            die( 'nonce not valid.' );
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
           }
+        } else {
+          die( 'nonce not valid.' );
+        } 
+      }
+
+      if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
+
+        $nonce = $_REQUEST['wll_remove_ip_nonce'];
+        if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
+
+          $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
+
+          if ( $wpdb->query( $sql ) > 0 ) {
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
+          } else {
+            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
+          }
+        } else {
+          die( 'nonce not valid.' );
         }
+      }
     }
 
 
