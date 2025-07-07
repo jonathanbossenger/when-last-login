@@ -40,6 +40,7 @@ class When_Last_Login {
       //Create the custom meta upon login
       add_action( 'wp_login', array( $this, 'last_login'), 10, 2 );
       add_action( 'user_register', array( $this, 'wll_user_register' ), 10, 1 );
+      add_action( 'two_factor_user_authenticated', array( $this, 'two_factor_user_authenticated' ), 10, 2 );
 
       //Admin actions
       add_action( 'wp_dashboard_setup', array( $this, 'admin_dashboard_widget' ) );      
@@ -160,11 +161,31 @@ class When_Last_Login {
       }
     }
 
-     public static function last_login( $user_login, $users ){
+	/**
+	 * Track the login process for the Two Factor Authentication plugin.
+	 *
+	 * @since TBD
+	 * 
+	 * @param WP_User $user
+	 * @param Two_Factor $two_factor (this is unused.)
+	 */
+	public static function two_factor_user_authenticated( $user, $two_factor ) {
+		// Let's call last_login function to record the login.
+		When_Last_Login::last_login( $user->user_login, $user );
+	}
+
+	/**
+	 * Track the user's login timestamp and "All Time Record". 
+	 *
+	 * @param string $user_login The username that is logging in.
+	 * @param WP_User $user The WordPress user object.
+	 * @return void
+	 */
+     public static function last_login( $user_login, $user ) {
 
       global $show_login_records;
 
-      $record_login = apply_filters( 'wll_record_login', true, $users, $user_login );
+      $record_login = apply_filters( 'wll_record_login', true, $user, $user_login );
 
       // If filter isn't true, don't record login at all!
       if ( ! $record_login ) {
@@ -172,25 +193,25 @@ class When_Last_Login {
       }
 
       //get/update user meta 'when_last_login' on login and add time() to it.
-      update_user_meta( $users->ID, 'when_last_login', time() );
+      update_user_meta( $user->ID, 'when_last_login', time() );
 
       //get and update user meta 'when_last_login_count' on login for # of login counts. Thanks to Jarryd Long (@jarrydlong) for the assistance
-      $wll_count = get_user_meta( $users->ID, 'when_last_login_count', true );
+      $wll_count = get_user_meta( $user->ID, 'when_last_login_count', true );
 
       if( $wll_count === false ){
-        update_user_meta($users->ID, 'when_last_login_count', 1);
+        update_user_meta($user->ID, 'when_last_login_count', 1);
       } else {
         $wll_new_value = intval($wll_count);
         $wll_new_value = $wll_new_value + 1;
 
-        update_user_meta($users->ID, 'when_last_login_count', $wll_new_value);
+        update_user_meta($user->ID, 'when_last_login_count', $wll_new_value);
       }
 
       if( $show_login_records == true ){
         $args = array(
-          'post_title'    => $users->data->display_name . __( ' has logged in at ', 'when-last-login' ) . date( 'Y-m-d H:i:s', current_time( 'timestamp' ) ),
+          'post_title'    => $user->data->display_name . __( ' has logged in at ', 'when-last-login' ) . date( 'Y-m-d H:i:s', current_time( 'timestamp' ) ),
           'post_status'   => 'publish',
-          'post_author'   => $users->ID,
+          'post_author'   => $user->ID,
           'post_type'     => 'wll_records'
         );
 
