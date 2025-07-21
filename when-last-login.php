@@ -1,9 +1,9 @@
 <?php
 /*
 Plugin Name: When Last Login
-Plugin URI: https://wordpress.org/plugins/when-last-login/
+Plugin URI: https://whenlastlogin.com
 Description: See when a user logs into your WordPress site.
-Version: 1.2.2
+Version: 1.2.3
 Author: Yoohoo Plugins
 Author URI: https://yoohooplugins.com
 Text Domain: when-last-login
@@ -12,7 +12,7 @@ Domain Path: /languages
 
 use geertw\IpAnonymizer\IpAnonymizer;
 
-define( 'WLL_VER', '1.2.2' );
+define( 'WLL_VER', '1.2.3' );
 
 class When_Last_Login {
 
