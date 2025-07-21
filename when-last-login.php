@@ -230,10 +230,10 @@ class When_Last_Login {
           update_post_meta( $post_id, 'wll_user_ip_address', $ip );
         }
         
-          update_user_meta( $users->ID, 'wll_user_ip_address', $ip );
+          update_user_meta( $user->ID, 'wll_user_ip_address', $ip );
       }
 
-      do_action( 'wll_logged_in_action', array( 'login_count' => $wll_new_value, 'user' => $users ), $wll_settings );
+      do_action( 'wll_logged_in_action', array( 'login_count' => $wll_new_value, 'user' => $user ), $wll_settings );
 
      }
 
