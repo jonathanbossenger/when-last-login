@@ -142,7 +142,7 @@ class When_Last_Login {
 
     public function wll_hide_subscription_notice(){
     if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
-        wp_die( __( 'Nonce is invalid', 'pmpro-pdf-invoices' ) );
+        wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
     }
