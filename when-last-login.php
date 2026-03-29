@@ -241,16 +241,14 @@ class When_Last_Login {
         update_user_meta( $user->ID, 'wll_user_ip_address', $ip );
       }
 
-      // Save to custom table (new in 1.3.0).
-      if ( class_exists( 'WLL_DB' ) && WLL_DB::table_exists( 'wll_login_records' ) ) {
+      // Save to database tables (new in 1.3.0).
+      if ( class_exists( 'WLL_DB' ) ) {
         $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
         $browser    = When_Last_Login::parse_browser( $user_agent );
         $os         = When_Last_Login::parse_os( $user_agent );
         $device     = When_Last_Login::parse_device( $user_agent );
 
-        WLL_DB::insert_login_record( array(
-          'user_id'    => $user->ID,
-          'login_time' => current_time( 'mysql' ),
+        WLL_DB::record_login( $user->ID, array(
           'ip_address' => $ip,
           'user_agent' => $user_agent,
           'browser'    => $browser,

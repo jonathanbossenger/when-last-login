@@ -41,10 +41,19 @@ class WLL_DB {
 	const VERSION_OPTION = 'wll_db_version';
 
 	/**
-	 * Login records table name.
+	 * Summary table name (per-user aggregated data).
 	 *
 	 * @since  1.3.0
-	 * @access private
+	 * @access public
+	 * @var    string
+	 */
+	const SUMMARY_TABLE = 'when_last_login';
+
+	/**
+	 * Login records table name (individual logins).
+	 *
+	 * @since  1.3.0
+	 * @access public
 	 * @var    string
 	 */
 	const LOGIN_RECORDS_TABLE = 'wll_login_records';
@@ -56,8 +65,8 @@ class WLL_DB {
 	 * @access public
 	 */
 	public static function init() {
-		add_action('admin_init', array( __CLASS__, 'check_db_version' ) );
-		add_action('wll_migrate_login_records', array( __CLASS__, 'migrate_batch' ) );
+		add_action( 'admin_init', array( __CLASS__, 'check_db_version' ) );
+		add_action( 'wll_migrate_login_records', array( __CLASS__, 'migrate_batch' ) );
 	}
 
 	/**
@@ -73,7 +82,7 @@ class WLL_DB {
 
 		$current_version = get_option( self::VERSION_OPTION, '1.0.0' );
 
-		// Upgrade to 1.3.0 - Create login records table.
+		// Upgrade to 1.3.0 - Create tables and migrate data.
 		if ( version_compare( $current_version, '1.3.0', '<' ) ) {
 			self::upgrade_1_3_0();
 		}
@@ -94,10 +103,10 @@ class WLL_DB {
 	 * @since  1.3.0
 	 * @access public
 	 *
-	 * @param  string $table Table name without prefix.
+	 * @param  string $table Table name constant (SUMMARY_TABLE or LOGIN_RECORDS_TABLE).
 	 * @return string        Full table name.
 	 */
-	public static function get_table_name( $table = self::LOGIN_RECORDS_TABLE ) {
+	public static function get_table_name( $table = self::SUMMARY_TABLE ) {
 		global $wpdb;
 		return $wpdb->prefix . $table;
 	}
@@ -108,7 +117,7 @@ class WLL_DB {
 	 * @since  1.3.0
 	 * @access public
 	 *
-	 * @param  string $table Table name (without prefix).
+	 * @param  string $table Table name constant.
 	 * @return bool         True if table exists.
 	 */
 	public static function table_exists( $table ) {
@@ -123,7 +132,52 @@ class WLL_DB {
 	}
 
 	/**
-	 * Create the login records table.
+	 * Create all required tables.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return bool True on success.
+	 */
+	public static function create_tables() {
+		$summary_created = self::create_summary_table();
+		$records_created = self::create_login_records_table();
+
+		return $summary_created && $records_created;
+	}
+
+	/**
+	 * Create the summary table (per-user aggregated data).
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return bool True on success.
+	 */
+	public static function create_summary_table() {
+		global $wpdb;
+
+		$table_name = self::get_table_name( self::SUMMARY_TABLE );
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$sql = "CREATE TABLE $table_name (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned NOT NULL,
+			last_login datetime NOT NULL,
+			login_count bigint(20) unsigned DEFAULT 1,
+			PRIMARY KEY (id),
+			UNIQUE KEY user_id (user_id),
+			KEY last_login (last_login)
+		) $charset_collate;";
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( $sql );
+
+		return self::table_exists( self::SUMMARY_TABLE );
+	}
+
+	/**
+	 * Create the login records table (individual logins).
 	 *
 	 * @since  1.3.0
 	 * @access public
@@ -145,7 +199,6 @@ class WLL_DB {
 			browser varchar(50) DEFAULT NULL,
 			os varchar(50) DEFAULT NULL,
 			device varchar(20) DEFAULT NULL,
-			location_data text DEFAULT NULL,
 			PRIMARY KEY (id),
 			KEY user_id (user_id),
 			KEY login_time (login_time),
@@ -155,29 +208,30 @@ class WLL_DB {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
 
-		// Verify table was created.
 		return self::table_exists( self::LOGIN_RECORDS_TABLE );
 	}
 
 	/**
 	 * Upgrade to version 1.3.0.
 	 *
-	 * Creates the login records table and schedules migration.
+	 * Creates tables and schedules data migration.
 	 *
 	 * @since  1.3.0
 	 * @access private
 	 */
 	private static function upgrade_1_3_0() {
-		// Create table.
-		$table_created = self::create_login_records_table();
+		// Create tables.
+		$tables_created = self::create_tables();
 
-		if ( ! $table_created ) {
-			// Log error but don't stop execution.
-			error_log( 'WLL: Failed to create login_records table' );
+		if ( ! $tables_created ) {
+			error_log( 'WLL: Failed to create database tables during 1.3.0 upgrade' );
 			return;
 		}
 
-		// Check if there are records to migrate.
+		// Populate summary table from user meta.
+		self::populate_summary_table();
+
+		// Check if there are posts to migrate.
 		$posts_count = self::count_posts_to_migrate();
 
 		if ( $posts_count > 0 ) {
@@ -189,12 +243,12 @@ class WLL_DB {
 				'status'    => 'pending',
 			) );
 
-			// Schedule migration if not already scheduled.
+			// Schedule migration.
 			if ( ! wp_next_scheduled( 'wll_migrate_login_records' ) ) {
 				wp_schedule_single_event( time() + 30, 'wll_migrate_login_records' );
 			}
 		} else {
-			// No posts to migrate, mark complete.
+			// No posts to migrate.
 			update_option( 'wll_migration_status', array(
 				'total'     => 0,
 				'migrated'  => 0,
@@ -211,14 +265,60 @@ class WLL_DB {
 		 * Fires after 1.3.0 upgrade completes.
 		 *
 		 * @since 1.3.0
-		 *
-		 * @param int $posts_count Number of posts to migrate.
 		 */
-		do_action( 'wll_upgrade_1_3_0_complete', $posts_count );
+		do_action( 'wll_upgrade_1_3_0_complete' );
 	}
 
 	/**
-	 * Count posts to migrate.
+	 * Populate summary table from existing user meta.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 */
+	public static function populate_summary_table() {
+		global $wpdb;
+
+		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
+
+		// Get all users with login data.
+		$users = get_users( array(
+			'meta_key'     => 'when_last_login',
+			'meta_compare' => 'EXISTS',
+			'fields'       => array( 'ID' ),
+			'number'       => 1000,
+		) );
+
+		foreach ( $users as $user ) {
+			$last_login = get_user_meta( $user->ID, 'when_last_login', true );
+			$login_count = get_user_meta( $user->ID, 'when_last_login_count', true );
+
+			if ( empty( $last_login ) ) {
+				continue;
+			}
+
+			// Convert timestamp to datetime.
+			$login_time = is_numeric( $last_login )
+				? gmdate( 'Y-m-d H:i:s', $last_login )
+				: $last_login;
+
+			// Upsert into summary table.
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO $summary_table (user_id, last_login, login_count)
+					 VALUES (%d, %s, %d)
+					 ON DUPLICATE KEY UPDATE
+					 last_login = VALUES(last_login),
+					 login_count = VALUES(login_count)",
+					$user->ID,
+					$login_time,
+					absint( $login_count ) ?: 1
+				)
+			);
+		}
+	}
+
+	/**
+	 * Count posts to migrate from custom post type.
 	 *
 	 * @since  1.3.0
 	 * @access public
@@ -228,7 +328,7 @@ class WLL_DB {
 	public static function count_posts_to_migrate() {
 		$args = array(
 			'post_type'      => 'wll_records',
-			'post_status'     => 'any',
+			'post_status'    => 'any',
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 		);
@@ -246,7 +346,6 @@ class WLL_DB {
 	public static function migrate_batch() {
 		global $wpdb;
 
-		// Get migration status.
 		$status = get_option( 'wll_migration_status', array() );
 
 		if ( empty( $status ) || $status['status'] === 'complete' ) {
@@ -255,7 +354,6 @@ class WLL_DB {
 
 		$batch_size = apply_filters( 'wll_migration_batch_size', 500 );
 
-		// Get posts to migrate.
 		$args = array(
 			'post_type'      => 'wll_records',
 			'post_status'    => 'any',
@@ -269,14 +367,13 @@ class WLL_DB {
 		$post_ids = $query->posts;
 
 		if ( empty( $post_ids ) ) {
-			// No more posts, migration complete.
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
 			update_option( 'wll_migration_status', $status );
 			return;
 		}
 
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 		$migrated = 0;
 
 		foreach ( $post_ids as $post_id ) {
@@ -286,30 +383,19 @@ class WLL_DB {
 				continue;
 			}
 
-			// Extract data from post.
 			$user_id    = $post->post_author;
 			$login_time = $post->post_date;
 			$ip_address = get_post_meta( $post_id, 'wll_user_ip_address', true );
 
-			// Parse user agent if available.
-			$user_agent = '';
-			$browser    = '';
-			$os         = '';
-			$device     = '';
-
-			// Insert into table.
+			// Insert into login records table.
 			$wpdb->insert(
-				$table_name,
+				$records_table,
 				array(
 					'user_id'    => $user_id,
 					'login_time' => $login_time,
 					'ip_address' => $ip_address,
-					'user_agent' => $user_agent,
-					'browser'    => $browser,
-					'os'         => $os,
-					'device'     => $device,
 				),
-				array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+				array( '%d', '%s', '%s' )
 			);
 
 			$migrated++;
@@ -320,7 +406,7 @@ class WLL_DB {
 		$status['status']    = 'in_progress';
 		update_option( 'wll_migration_status', $status );
 
-		// Schedule next batch if more to migrate.
+		// Schedule next batch.
 		if ( $migrated > 0 ) {
 			wp_schedule_single_event( time() + 10, 'wll_migrate_login_records' );
 		} else {
@@ -331,56 +417,106 @@ class WLL_DB {
 	}
 
 	/**
-	 * Insert a login record.
+	 * Record a user login.
+	 *
+	 * Updates summary table and inserts into login records.
 	 *
 	 * @since  1.3.0
 	 * @access public
 	 *
-	 * @param  array $data Record data.
-	 * @return int|false   Inserted ID or false on failure.
+	 * @param  int    $user_id    User ID.
+	 * @param  array  $login_data Optional. Additional login data.
+	 * @return bool              True on success.
 	 */
-	public static function insert_login_record( $data ) {
+	public static function record_login( $user_id, $login_data = array() ) {
 		global $wpdb;
 
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 
+		$now = current_time( 'mysql' );
+
+		// Update summary table (upsert).
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO $summary_table (user_id, last_login, login_count)
+				 VALUES (%d, %s, 1)
+				 ON DUPLICATE KEY UPDATE
+				 last_login = VALUES(last_login),
+				 login_count = login_count + 1",
+				$user_id,
+				$now
+			)
+		);
+
+		// Insert into login records.
 		$defaults = array(
-			'user_id'       => 0,
-			'login_time'    => current_time( 'mysql' ),
-			'ip_address'    => '',
-			'user_agent'    => '',
-			'browser'       => '',
-			'os'            => '',
-			'device'        => '',
-			'location_data' => '',
+			'user_id'    => $user_id,
+			'login_time' => $now,
+			'ip_address' => '',
+			'user_agent' => '',
+			'browser'    => '',
+			'os'         => '',
+			'device'     => '',
 		);
 
-		$data = wp_parse_args( $data, $defaults );
+		$data = wp_parse_args( $login_data, $defaults );
 
-		$result = $wpdb->insert(
-			$table_name,
+		$wpdb->insert(
+			$records_table,
 			array(
-				'user_id'       => absint( $data['user_id'] ),
-				'login_time'    => sanitize_text_field( $data['login_time'] ),
-				'ip_address'    => sanitize_text_field( $data['ip_address'] ),
-				'user_agent'    => sanitize_text_field( $data['user_agent'] ),
-				'browser'       => sanitize_text_field( $data['browser'] ),
-				'os'            => sanitize_text_field( $data['os'] ),
-				'device'        => sanitize_text_field( $data['device'] ),
-				'location_data' => maybe_serialize( $data['location_data'] ),
+				'user_id'    => absint( $data['user_id'] ),
+				'login_time' => sanitize_text_field( $data['login_time'] ),
+				'ip_address' => sanitize_text_field( $data['ip_address'] ),
+				'user_agent' => sanitize_text_field( $data['user_agent'] ),
+				'browser'    => sanitize_text_field( $data['browser'] ),
+				'os'         => sanitize_text_field( $data['os'] ),
+				'device'     => sanitize_text_field( $data['device'] ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
-		if ( false === $result ) {
-			return false;
-		}
-
-		return $wpdb->insert_id;
+		return true;
 	}
 
 	/**
-	 * Get login records for a user.
+	 * Get user's last login from summary table.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $user_id User ID.
+	 * @return object|null   Last login data.
+	 */
+	public static function get_last_login( $user_id ) {
+		global $wpdb;
+
+		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $summary_table WHERE user_id = %d",
+				absint( $user_id )
+			)
+		);
+	}
+
+	/**
+	 * Get user's login count.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $user_id User ID.
+	 * @return int         Login count.
+	 */
+	public static function get_login_count( $user_id ) {
+		$row = self::get_last_login( $user_id );
+		return $row ? absint( $row->login_count ) : 0;
+	}
+
+	/**
+	 * Get login history for a user.
 	 *
 	 * @since  1.3.0
 	 * @access public
@@ -388,22 +524,21 @@ class WLL_DB {
 	 * @param  array $args Query arguments.
 	 * @return array       Login records.
 	 */
-	public static function get_login_records( $args = array() ) {
+	public static function get_login_history( $args = array() ) {
 		global $wpdb;
 
 		$defaults = array(
-			'user_id'     => 0,
-			'per_page'    => 50,
-			'page'        => 1,
-			'orderby'     => 'login_time',
-			'order'       => 'DESC',
-			'date_from'   => '',
-			'date_to'     => '',
+			'user_id'   => 0,
+			'per_page'  => 50,
+			'page'      => 1,
+			'orderby'   => 'login_time',
+			'order'     => 'DESC',
+			'date_from' => '',
+			'date_to'   => '',
 		);
 
 		$args = wp_parse_args( $args, $defaults );
-
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 
 		$where = 'WHERE 1=1';
 		$prepare = array();
@@ -426,7 +561,7 @@ class WLL_DB {
 		$orderby = sanitize_sql_orderby( $args['orderby'] . ' ' . $args['order'] );
 		$offset = ( $args['page'] - 1 ) * $args['per_page'];
 
-		$sql = "SELECT * FROM $table_name $where ORDER BY $orderby LIMIT %d OFFSET %d";
+		$sql = "SELECT * FROM $records_table $where ORDER BY $orderby LIMIT %d OFFSET %d";
 		$prepare[] = absint( $args['per_page'] );
 		$prepare[] = absint( $offset );
 
@@ -438,53 +573,38 @@ class WLL_DB {
 	}
 
 	/**
-	 * Get login count for a user.
+	 * Get inactive users.
 	 *
 	 * @since  1.3.0
 	 * @access public
 	 *
-	 * @param  int $user_id User ID.
-	 * @return int         Login count.
+	 * @param  int   $days     Days of inactivity.
+	 * @param  int   $limit    Maximum users to return.
+	 * @param  array $excluded Excluded user IDs.
+	 * @return array           User IDs.
 	 */
-	public static function get_login_count( $user_id ) {
+	public static function get_inactive_users( $days = 90, $limit = 100, $excluded = array() ) {
 		global $wpdb;
 
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
+		$threshold_date = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
 
-		$count = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM $table_name WHERE user_id = %d",
-				absint( $user_id )
-			)
-		);
+		$sql = "SELECT user_id FROM $summary_table WHERE last_login < %s";
+		$prepare = array( $threshold_date );
 
-		return absint( $count );
+		if ( ! empty( $excluded ) ) {
+			$sql .= ' AND user_id NOT IN (' . implode( ',', array_fill( 0, count( $excluded ), '%d' ) ) . ')';
+			$prepare = array_merge( $prepare, array_map( 'absint', $excluded ) );
+		}
+
+		$sql .= ' ORDER BY last_login ASC LIMIT %d';
+		$prepare[] = absint( $limit );
+
+		return $wpdb->get_col( $wpdb->prepare( $sql, $prepare ) );
 	}
 
 	/**
-	 * Get last login for a user.
-	 *
-	 * @since  1.3.0
-	 * @access public
-	 *
-	 * @param  int $user_id User ID.
-	 * @return object|null Last login record.
-	 */
-	public static function get_last_login( $user_id ) {
-		global $wpdb;
-
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
-
-		return $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $table_name WHERE user_id = %d ORDER BY login_time DESC LIMIT 1",
-				absint( $user_id )
-			)
-		);
-	}
-
-	/**
-	 * Delete old records.
+	 * Clean up old login records.
 	 *
 	 * @since  1.3.0
 	 * @access public
@@ -492,36 +612,18 @@ class WLL_DB {
 	 * @param  int $days Days to keep.
 	 * @return int      Number of records deleted.
 	 */
-	public static function delete_old_records( $days = 90 ) {
+	public static function cleanup_old_records( $days = 90 ) {
 		global $wpdb;
 
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 		$cutoff_date = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
 
-		$result = $wpdb->query(
+		return $wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM $table_name WHERE login_time < %s",
+				"DELETE FROM $records_table WHERE login_time < %s",
 				$cutoff_date
 			)
 		);
-
-		return absint( $result );
-	}
-
-	/**
-	 * Delete all records.
-	 *
-	 * @since  1.3.0
-	 * @access public
-	 *
-	 * @return int Number of records deleted.
-	 */
-	public static function delete_all_records() {
-		global $wpdb;
-
-		$table_name = self::get_table_name( self::LOGIN_RECORDS_TABLE );
-
-		return $wpdb->query( "TRUNCATE TABLE $table_name" );
 	}
 
 	/**
@@ -541,7 +643,6 @@ class WLL_DB {
 
 		global $wpdb;
 
-		// Delete posts and postmeta.
 		$sql = $wpdb->prepare(
 			"DELETE p, pm FROM {$wpdb->posts} p 
 			 LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID 

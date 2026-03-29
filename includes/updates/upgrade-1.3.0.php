@@ -2,7 +2,7 @@
 /**
  * Upgrade script for version 1.3.0
  *
- * Migrates login records from custom post type to custom table.
+ * Creates database tables and migrates data from custom post type.
  *
  * @package When_Last_Login
  * @since   1.3.0
@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Run the 1.3.0 upgrade.
  *
+ * Creates both database tables and schedules data migration.
+ *
  * @since 1.3.0
  */
 function wll_upgrade_1_3_0() {
@@ -27,11 +29,23 @@ function wll_upgrade_1_3_0() {
 		return;
 	}
 
-	// Create the login records table.
-	$table_name = $wpdb->prefix . 'wll_login_records';
 	$charset_collate = $wpdb->get_charset_collate();
 
-	$sql = "CREATE TABLE $table_name (
+	// Create summary table (per-user aggregated data).
+	$summary_table = $wpdb->prefix . 'when_last_login';
+	$sql_summary = "CREATE TABLE $summary_table (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		user_id bigint(20) unsigned NOT NULL,
+		last_login datetime NOT NULL,
+		login_count bigint(20) unsigned DEFAULT 1,
+		PRIMARY KEY (id),
+		UNIQUE KEY user_id (user_id),
+		KEY last_login (last_login)
+	) $charset_collate;";
+
+	// Create login records table (individual logins).
+	$records_table = $wpdb->prefix . 'wll_login_records';
+	$sql_records = "CREATE TABLE $records_table (
 		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 		user_id bigint(20) unsigned NOT NULL,
 		login_time datetime NOT NULL,
@@ -40,7 +54,6 @@ function wll_upgrade_1_3_0() {
 		browser varchar(50) DEFAULT NULL,
 		os varchar(50) DEFAULT NULL,
 		device varchar(20) DEFAULT NULL,
-		location_data text DEFAULT NULL,
 		PRIMARY KEY (id),
 		KEY user_id (user_id),
 		KEY login_time (login_time),
@@ -48,22 +61,25 @@ function wll_upgrade_1_3_0() {
 	) $charset_collate;";
 
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-	dbDelta( $sql );
+	dbDelta( $sql_summary );
+	dbDelta( $sql_records );
 
-	// Verify table creation.
-	$table_exists = $wpdb->get_var(
-		$wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name )
-	) === $table_name;
+	// Verify tables were created.
+	$summary_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $summary_table ) ) === $summary_table;
+	$records_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $records_table ) ) === $records_table;
 
-	if ( ! $table_exists ) {
-		error_log( 'WLL: Failed to create wll_login_records table during 1.3.0 upgrade' );
+	if ( ! $summary_exists || ! $records_exists ) {
+		error_log( 'WLL: Failed to create database tables during 1.3.0 upgrade' );
 		return;
 	}
+
+	// Populate summary table from existing user meta.
+	wll_populate_summary_from_user_meta();
 
 	// Count posts to migrate.
 	$args = array(
 		'post_type'      => 'wll_records',
-		'post_status'     => 'any',
+		'post_status'    => 'any',
 		'posts_per_page' => 1,
 		'fields'         => 'ids',
 	);
@@ -84,7 +100,7 @@ function wll_upgrade_1_3_0() {
 			wp_schedule_single_event( time() + 30, 'wll_migrate_login_records' );
 		}
 	} else {
-		// No posts to migrate, mark complete.
+		// No posts to migrate.
 		update_option( 'wll_migration_status', array(
 			'total'     => 0,
 			'migrated'  => 0,
@@ -101,10 +117,72 @@ function wll_upgrade_1_3_0() {
 	 * Fires after 1.3.0 upgrade completes.
 	 *
 	 * @since 1.3.0
-	 *
-	 * @param int $posts_count Number of posts to migrate.
 	 */
-	do_action( 'wll_upgrade_1_3_0_complete', $posts_count );
+	do_action( 'wll_upgrade_1_3_0_complete' );
+}
+
+/**
+ * Populate summary table from existing user meta.
+ *
+ * @since 1.3.0
+ */
+function wll_populate_summary_from_user_meta() {
+	global $wpdb;
+
+	$summary_table = $wpdb->prefix . 'when_last_login';
+
+	// Get all users with login data.
+	$args = array(
+		'meta_key'     => 'when_last_login',
+		'meta_compare' => 'EXISTS',
+		'fields'       => array( 'ID' ),
+		'number'       => 500,
+	);
+
+	$page = 1;
+	while ( true ) {
+		$args['paged'] = $page;
+		$users = get_users( $args );
+
+		if ( empty( $users ) ) {
+			break;
+		}
+
+		foreach ( $users as $user ) {
+			$last_login_ts = get_user_meta( $user->ID, 'when_last_login', true );
+			$login_count    = get_user_meta( $user->ID, 'when_last_login_count', true );
+
+			if ( empty( $last_login_ts ) ) {
+				continue;
+			}
+
+			// Convert timestamp to datetime.
+			$login_time = is_numeric( $last_login_ts )
+				? gmdate( 'Y-m-d H:i:s', $last_login_ts )
+				: $last_login_ts;
+
+			// Upsert into summary table.
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO $summary_table (user_id, last_login, login_count)
+					 VALUES (%d, %s, %d)
+					 ON DUPLICATE KEY UPDATE
+					 last_login = VALUES(last_login),
+					 login_count = VALUES(login_count)",
+					$user->ID,
+					$login_time,
+					absint( $login_count ) ?: 1
+				)
+			);
+		}
+
+		$page++;
+
+		// Prevent timeout on large sites.
+		if ( $page % 10 === 0 ) {
+			sleep( 1 );
+		}
+	}
 }
 
 /**
@@ -115,7 +193,6 @@ function wll_upgrade_1_3_0() {
 function wll_migrate_records_batch() {
 	global $wpdb;
 
-	// Get migration status.
 	$status = get_option( 'wll_migration_status', array() );
 
 	if ( empty( $status ) || $status['status'] === 'complete' ) {
@@ -123,8 +200,8 @@ function wll_migrate_records_batch() {
 	}
 
 	$batch_size = apply_filters( 'wll_migration_batch_size', 500 );
+	$records_table = $wpdb->prefix . 'wll_login_records';
 
-	// Get posts to migrate.
 	$args = array(
 		'post_type'      => 'wll_records',
 		'post_status'    => 'any',
@@ -138,14 +215,12 @@ function wll_migrate_records_batch() {
 	$post_ids = $query->posts;
 
 	if ( empty( $post_ids ) ) {
-		// No more posts, migration complete.
 		$status['status']    = 'complete';
 		$status['completed'] = current_time( 'mysql' );
 		update_option( 'wll_migration_status', $status );
 		return;
 	}
 
-	$table_name = $wpdb->prefix . 'wll_login_records';
 	$migrated = 0;
 
 	foreach ( $post_ids as $post_id ) {
@@ -155,14 +230,13 @@ function wll_migrate_records_batch() {
 			continue;
 		}
 
-		// Extract data from post.
 		$user_id    = $post->post_author;
 		$login_time = $post->post_date;
 		$ip_address = get_post_meta( $post_id, 'wll_user_ip_address', true );
 
-		// Insert into table.
+		// Insert into login records table.
 		$wpdb->insert(
-			$table_name,
+			$records_table,
 			array(
 				'user_id'    => $user_id,
 				'login_time' => $login_time,
@@ -179,7 +253,7 @@ function wll_migrate_records_batch() {
 	$status['status']    = 'in_progress';
 	update_option( 'wll_migration_status', $status );
 
-	// Schedule next batch if more to migrate.
+	// Schedule next batch.
 	if ( $migrated > 0 ) {
 		wp_schedule_single_event( time() + 10, 'wll_migrate_login_records' );
 	} else {
