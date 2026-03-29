@@ -3,7 +3,7 @@
 Plugin Name: When Last Login
 Plugin URI: https://whenlastlogin.com
 Description: See when a user logs into your WordPress site.
-Version: 1.2.3
+Version: 1.3.0
 Author: Yoohoo Plugins
 Author URI: https://yoohooplugins.com
 Text Domain: when-last-login
@@ -12,7 +12,8 @@ Domain Path: /languages
 
 use geertw\IpAnonymizer\IpAnonymizer;
 
-define( 'WLL_VER', '1.2.3' );
+define( 'WLL_VER', '1.3.0' );
+define( 'WLL_DB_VER', '1.3.0' );
 
 class When_Last_Login {
 
@@ -32,8 +33,10 @@ class When_Last_Login {
 
       include WLL_DIR_PATH . '/includes/lib/IpAnonymizer.php';
       include WLL_DIR_PATH . '/includes/privacy-policy.php';
+      include WLL_DIR_PATH . '/includes/class-wll-db.php';
 
       add_action( 'admin_init', array( $this, 'admin_init' ) );
+      add_action( 'admin_init', array( $this, 'check_db_version' ) );
       add_action( 'plugins_loaded', array( $this, 'text_domain' ) );
       add_action( 'admin_enqueue_scripts', array( $this, 'load_js_for_notice' ) );
 
@@ -124,6 +127,28 @@ class When_Last_Login {
       }
     }
 
+    /**
+     * Check and run database migrations.
+     *
+     * @since 1.3.0
+     */
+    public static function check_db_version() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+      }
+
+      $current_db_version = get_option( 'wll_db_version', '1.0.0' );
+
+      // Upgrade to 1.3.0 - Create login records table.
+      if ( version_compare( $current_db_version, '1.3.0', '<' ) ) {
+        // Load the upgrade file.
+        if ( file_exists( WLL_DIR_PATH . 'includes/updates/upgrade-1.3.0.php' ) ) {
+          include_once WLL_DIR_PATH . 'includes/updates/upgrade-1.3.0.php';
+          wll_upgrade_1_3_0();
+        }
+      }
+    }
+
     public static function text_domain(){
       load_plugin_textdomain( 'when-last-login', false, dirname( 'WLL_BASE_NAME' ) . '/languages' );
     }
@@ -200,6 +225,7 @@ class When_Last_Login {
 
       if( $wll_count === false ){
         update_user_meta($user->ID, 'when_last_login_count', 1);
+        $wll_new_value = 1;
       } else {
         $wll_new_value = intval($wll_count);
         $wll_new_value = $wll_new_value + 1;
@@ -207,6 +233,31 @@ class When_Last_Login {
         update_user_meta($user->ID, 'when_last_login_count', $wll_new_value);
       }
 
+      // Get IP address.
+      $wll_settings = get_option( 'wll_settings' );
+      $ip = '';
+      if( isset( $wll_settings['record_ip_address'] ) && intval( $wll_settings['record_ip_address'] ) == 1 ){
+        $ip = When_Last_Login::wll_get_user_ip_address();
+        update_user_meta( $user->ID, 'wll_user_ip_address', $ip );
+      }
+
+      // Save to database tables (new in 1.3.0).
+      if ( class_exists( 'WLL_DB' ) ) {
+        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
+        $browser    = When_Last_Login::parse_browser( $user_agent );
+        $os         = When_Last_Login::parse_os( $user_agent );
+        $device     = When_Last_Login::parse_device( $user_agent );
+
+        WLL_DB::record_login( $user->ID, array(
+          'ip_address' => $ip,
+          'user_agent' => $user_agent,
+          'browser'    => $browser,
+          'os'         => $os,
+          'device'     => $device,
+        ) );
+      }
+
+      // Legacy: Create post record if enabled.
       if( $show_login_records == true ){
         $args = array(
           'post_title'    => $user->data->display_name . __( ' has logged in at ', 'when-last-login' ) . date( 'Y-m-d H:i:s', current_time( 'timestamp' ) ),
@@ -217,20 +268,9 @@ class When_Last_Login {
 
         $post_id = wp_insert_post( $args );
 
-      }
-
-      $wll_settings = get_option( 'wll_settings' );
-
-      if( isset( $wll_settings['record_ip_address'] ) && intval( $wll_settings['record_ip_address'] ) == 1 ){
-
-        // call function to anonymize here.
-        $ip = When_Last_Login::wll_get_user_ip_address();
-
-        if ( ! empty( $post_id ) ) {
+        if ( ! empty( $ip ) && ! empty( $post_id ) ) {
           update_post_meta( $post_id, 'wll_user_ip_address', $ip );
         }
-        
-          update_user_meta( $user->ID, 'wll_user_ip_address', $ip );
       }
 
       do_action( 'wll_logged_in_action', array( 'login_count' => $wll_new_value, 'user' => $user ), $wll_settings );
@@ -735,6 +775,91 @@ class When_Last_Login {
       }
       
       return IpAnonymizer::anonymizeIp( $ip );
+    }
+
+    /**
+     * Parse browser from user agent.
+     *
+     * @since  1.3.0
+     * @param  string $user_agent User agent string.
+     * @return string            Browser name.
+     */
+    public static function parse_browser( $user_agent ) {
+      $browsers = array(
+        'Edg'       => 'Edge',
+        'Chrome'    => 'Chrome',
+        'Safari'    => 'Safari',
+        'Firefox'   => 'Firefox',
+        'MSIE'      => 'IE',
+        'Trident'   => 'IE',
+        'Opera'     => 'Opera',
+        'OPR'       => 'Opera',
+      );
+
+      foreach ( $browsers as $pattern => $name ) {
+        if ( strpos( $user_agent, $pattern ) !== false ) {
+          return $name;
+        }
+      }
+
+      return 'Unknown';
+    }
+
+    /**
+     * Parse OS from user agent.
+     *
+     * @since  1.3.0
+     * @param  string $user_agent User agent string.
+     * @return string            OS name.
+     */
+    public static function parse_os( $user_agent ) {
+      $systems = array(
+        'Windows NT 11' => 'Windows 11',
+        'Windows NT 10' => 'Windows 10',
+        'Windows NT 6.3' => 'Windows 8.1',
+        'Windows NT 6.2' => 'Windows 8',
+        'Windows NT 6.1' => 'Windows 7',
+        'Mac OS X'       => 'macOS',
+        'iPhone'         => 'iOS',
+        'iPad'           => 'iOS',
+        'Android'        => 'Android',
+        'Linux'           => 'Linux',
+        'Ubuntu'         => 'Ubuntu',
+      );
+
+      foreach ( $systems as $pattern => $name ) {
+        if ( strpos( $user_agent, $pattern ) !== false ) {
+          return $name;
+        }
+      }
+
+      return 'Unknown';
+    }
+
+    /**
+     * Parse device type from user agent.
+     *
+     * @since  1.3.0
+     * @param  string $user_agent User agent string.
+     * @return string            Device type.
+     */
+    public static function parse_device( $user_agent ) {
+      $mobile = array( 'Mobile', 'Android', 'iPhone', 'iPad', 'Windows Phone' );
+
+      foreach ( $mobile as $pattern ) {
+        if ( strpos( $user_agent, $pattern ) !== false ) {
+          if ( strpos( $user_agent, 'iPad' ) !== false ) {
+            return 'Tablet';
+          }
+          return 'Mobile';
+        }
+      }
+
+      if ( strpos( $user_agent, 'Tablet' ) !== false ) {
+        return 'Tablet';
+      }
+
+      return 'Desktop';
     }
 
 } // end class
