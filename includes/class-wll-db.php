@@ -167,7 +167,8 @@ class WLL_DB {
 			login_count bigint(20) unsigned DEFAULT 1,
 			PRIMARY KEY (id),
 			UNIQUE KEY user_id (user_id),
-			KEY last_login (last_login)
+			KEY last_login (last_login),
+			KEY login_count (login_count)
 		) $charset_collate;";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -202,13 +203,192 @@ class WLL_DB {
 			PRIMARY KEY (id),
 			KEY user_id (user_id),
 			KEY login_time (login_time),
-			KEY user_id_login_time (user_id, login_time)
+			KEY user_id_login_time (user_id, login_time),
+			KEY ip_address (ip_address),
+			KEY browser (browser),
+			KEY os (os),
+			KEY device (device)
 		) $charset_collate;";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
 
 		return self::table_exists( self::LOGIN_RECORDS_TABLE );
+	}
+
+	/**
+	 * Get users by IP address.
+	 *
+	 * Useful for security audits and detecting duplicate accounts.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  string $ip_address IP address to search.
+	 * @param  int    $limit      Maximum results.
+	 * @return array              User IDs and login times.
+	 */
+	public static function get_users_by_ip( $ip_address, $limit = 100 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT DISTINCT user_id, MAX(login_time) as last_login
+				 FROM $records_table
+				 WHERE ip_address = %s
+				 GROUP BY user_id
+				 ORDER BY last_login DESC
+				 LIMIT %d",
+				sanitize_text_field( $ip_address ),
+				absint( $limit )
+			)
+		);
+	}
+
+	/**
+	 * Get login statistics by browser.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $days Number of days to analyze.
+	 * @return array    Browser usage counts.
+	 */
+	public static function get_browser_stats( $days = 30 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$cutoff_date = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT browser, COUNT(*) as count
+				 FROM $records_table
+				 WHERE login_time >= %s
+				 AND browser IS NOT NULL AND browser != ''
+				 GROUP BY browser
+				 ORDER BY count DESC",
+				$cutoff_date
+			)
+		);
+	}
+
+	/**
+	 * Get login statistics by OS.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $days Number of days to analyze.
+	 * @return array    OS usage counts.
+	 */
+	public static function get_os_stats( $days = 30 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$cutoff_date = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT os, COUNT(*) as count
+				 FROM $records_table
+				 WHERE login_time >= %s
+				 AND os IS NOT NULL AND os != ''
+				 GROUP BY os
+				 ORDER BY count DESC",
+				$cutoff_date
+			)
+		);
+	}
+
+	/**
+	 * Get login statistics by device type.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $days Number of days to analyze.
+	 * @return array    Device usage counts.
+	 */
+	public static function get_device_stats( $days = 30 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$cutoff_date = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT device, COUNT(*) as count
+				 FROM $records_table
+				 WHERE login_time >= %s
+				 AND device IS NOT NULL AND device != ''
+				 GROUP BY device
+				 ORDER BY count DESC",
+				$cutoff_date
+			)
+		);
+	}
+
+	/**
+	 * Get daily login counts for a date range.
+	 *
+	 * Useful for analytics dashboards.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  string $date_from Start date (Y-m-d).
+	 * @param  string $date_to   End date (Y-m-d).
+	 * @return array            Daily login counts.
+	 */
+	public static function get_daily_login_stats( $date_from, $date_to ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT DATE(login_time) as date, COUNT(*) as count
+				 FROM $records_table
+				 WHERE login_time >= %s
+				 AND login_time <= %s
+				 GROUP BY DATE(login_time)
+				 ORDER BY date ASC",
+				$date_from . ' 00:00:00',
+				$date_to . ' 23:59:59'
+			)
+		);
+	}
+
+	/**
+	 * Get unique logins per day (distinct users).
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  string $date_from Start date (Y-m-d).
+	 * @param  string $date_to   End date (Y-m-d).
+	 * @return array            Daily unique user counts.
+	 */
+	public static function get_daily_unique_logins( $date_from, $date_to ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT DATE(login_time) as date, COUNT(DISTINCT user_id) as unique_users
+				 FROM $records_table
+				 WHERE login_time >= %s
+				 AND login_time <= %s
+				 GROUP BY DATE(login_time)
+				 ORDER BY date ASC",
+				$date_from . ' 00:00:00',
+				$date_to . ' 23:59:59'
+			)
+		);
 	}
 
 	/**

@@ -40,7 +40,8 @@ function wll_upgrade_1_3_0() {
 		login_count bigint(20) unsigned DEFAULT 1,
 		PRIMARY KEY (id),
 		UNIQUE KEY user_id (user_id),
-		KEY last_login (last_login)
+		KEY last_login (last_login),
+		KEY login_count (login_count)
 	) $charset_collate;";
 
 	// Create login records table (individual logins).
@@ -57,7 +58,11 @@ function wll_upgrade_1_3_0() {
 		PRIMARY KEY (id),
 		KEY user_id (user_id),
 		KEY login_time (login_time),
-		KEY user_id_login_time (user_id, login_time)
+		KEY user_id_login_time (user_id, login_time),
+		KEY ip_address (ip_address),
+		KEY browser (browser),
+		KEY os (os),
+		KEY device (device)
 	) $charset_collate;";
 
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
