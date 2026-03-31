@@ -13,7 +13,6 @@ Domain Path: /languages
 use geertw\IpAnonymizer\IpAnonymizer;
 
 define( 'WLL_VER', '1.3.0' );
-define( 'WLL_DB_VER', '1.3.0' );
 
 class When_Last_Login {
 
