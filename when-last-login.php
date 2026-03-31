@@ -64,7 +64,7 @@ class When_Last_Login {
       add_filter( 'pmpro_memberslist_csv_extra_columns', array( $this, 'pmpro_csv_export_columns' ) );
       add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
       add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
-      add_action( 'admin_menu', array( $this, 'wll_login_records_page' ), 10 );
+      add_action( 'admin_menu', array( $this, 'wll_login_records_callback' ), 10 );
       add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
       add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
 
