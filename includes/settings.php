@@ -13,7 +13,30 @@ $tabs = array(
 
 $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
 
+$wll_migration_status = get_option( 'wll_migration_status', array() );
+$wll_migration_active = ! empty( $wll_migration_status ) && $wll_migration_status['status'] !== 'complete';
+
 ?>
+
+<?php if ( $wll_migration_active ) : ?>
+<div id="wll-migration-notice" class="notice notice-info">
+	<p><?php esc_html_e( 'When Last Login is migrating your login data in the background. This notice will disappear once migration is complete.', 'when-last-login' ); ?></p>
+</div>
+<script>
+(function($) {
+	var wllMigrationPoll = setInterval(function() {
+		$.post(ajaxurl, {
+			action: 'wll_check_migration_status'
+		}, function(response) {
+			if (response.success && response.data.complete) {
+				$('#wll-migration-notice').fadeOut(400, function() { $(this).remove(); });
+				clearInterval(wllMigrationPoll);
+			}
+		});
+	}, 5000);
+}(jQuery));
+</script>
+<?php endif; ?>
 
 <div id="wll-setting-header">
 	<img src="<?php echo WLL_PLUGIN . '/includes/images/whenlastlogin.png'; ?>" width="300px" height="auto" style="margin-top:2%;"/><span style="position:relative;top:-15px;"><?php echo 'v' . WLL_VER; ?></span>

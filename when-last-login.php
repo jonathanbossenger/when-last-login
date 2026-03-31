@@ -50,6 +50,7 @@ class When_Last_Login {
       add_action( 'admin_notices', array( $this, 'update_notice' ) );
 
       add_action( 'wp_ajax_wll_hide_subscription_notice', array( $this, 'wll_hide_subscription_notice' ) );
+      add_action( 'wp_ajax_wll_check_migration_status', array( $this, 'wll_check_migration_status' ) );
 
       //Setting up columns.
       add_filter( 'manage_users_columns', array( $this, 'column_header'), 10, 1 );
@@ -166,6 +167,16 @@ class When_Last_Login {
         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
+    }
+
+    public function wll_check_migration_status() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( -1 );
+      }
+      $status = get_option( 'wll_migration_status', array() );
+      wp_send_json_success( array(
+        'complete' => empty( $status ) || $status['status'] === 'complete',
+      ) );
     }
 
     public static function load_js_for_notice(){
