@@ -58,9 +58,10 @@ class When_Last_Login {
       add_action( 'pre_get_users', array( $this, 'sort_by_login_date') );
 
       //Integration for Paid Memberships Pro
-      //TODO: Improve integration with Member List and Paid Memberships Pro
       add_action( 'pmpro_memberslist_extra_cols_header', array( $this, 'pmpro_memberlist_add_header' ) );
       add_action( 'pmpro_memberslist_extra_cols_body', array( $this, 'pmpro_memberlist_add_column_data' ) );
+      add_filter( 'pmpro_memberslist_csv_extra_columns', array( $this, 'pmpro_csv_export_columns' ) );
+      add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
       add_action( 'init', array( $this, 'login_record_cp' ) );
 
       add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
@@ -570,6 +571,40 @@ class When_Last_Login {
       </td>
 <?php
      }
+
+    /**
+     * Add Last Login column to PMPro CSV export.
+     *
+     * @param array $columns Array of column key => label pairs.
+     * @return array Modified columns array.
+     */
+    public static function pmpro_csv_export_columns( $columns ) {
+        if ( ! defined( 'PMPRO_VERSION' ) ) {
+            return $columns;
+        }
+        $columns['when_last_login'] = __( 'Last Login', 'when-last-login' );
+        return $columns;
+    }
+
+    /**
+     * Add Last Login data to PMPro CSV export rows.
+     *
+     * @param array $row The CSV row data.
+     * @param object $user The user object.
+     * @return array Modified row data.
+     */
+    public static function pmpro_csv_export_row( $row, $user ) {
+        if ( ! defined( 'PMPRO_VERSION' ) ) {
+            return $row;
+        }
+        $last_login = get_user_meta( $user->ID, 'when_last_login', true );
+        if ( ! empty( $last_login ) ) {
+            $row['when_last_login'] = date( 'Y-m-d H:i:s', $last_login );
+        } else {
+            $row['when_last_login'] = __( 'Never', 'when-last-login' );
+        }
+        return $row;
+    }
 
     public function wll_settings_page(){
 
