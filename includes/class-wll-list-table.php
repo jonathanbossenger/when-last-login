@@ -200,8 +200,7 @@ class WLL_List_Table extends WP_List_Table {
 	public function prepare_items() {
 		global $wpdb;
 
-		// Process bulk actions.
-		$this->process_bulk_action();
+		// Note: Bulk actions are processed in wll_login_records_callback() before redirect.
 
 		// Columns.
 		$columns = $this->get_columns();

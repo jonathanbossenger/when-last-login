@@ -546,12 +546,12 @@ class When_Last_Login {
      * @since  1.3.0
      */
     public function wll_login_records_callback() {
-      // Process bulk actions and redirect if needed.
+      // Process bulk actions and redirect if needed (before any output).
       $list_table = new WLL_List_Table();
       $deleted = $list_table->process_bulk_action();
 
       if ( $deleted > 0 ) {
-        wp_safe_redirect( add_query_arg( 'deleted', $deleted, admin_url( 'admin.php?page=wll-login-records' ) ) );
+        wp_redirect( add_query_arg( 'deleted', $deleted, admin_url( 'admin.php?page=wll-login-records' ) ) );
         exit;
       }
 
