@@ -159,7 +159,7 @@ class When_Last_Login {
         ?>
         <div class="notice notice-success  wll-update-notice-newsletter is-dismissible" >
         <h3><?php _e('Thank you for using When Last Login', 'when-last-login'); ?></h3>
-        <p><?php  _e( sprintf( 'Please consider leaving an honest review for When Last Login by visiting %s', '<a href="'. esc_url( 'https://wordpress.org/support/plugin/when-last-login/reviews/#new-post' ) . '" target="_blank">this link</a>' ), 'when-last-login' ); ?></p>
+        <p><?php printf( __( 'Please consider leaving an honest review for When Last Login by visiting %s', 'when-last-login' ), '<a href="' . esc_url( 'https://wordpress.org/support/plugin/when-last-login/reviews/#new-post' ) . '" target="_blank">' . __( 'this link', 'when-last-login' ) . '</a>' ); ?></p>
         </div>
         <?php
       }
@@ -167,7 +167,7 @@ class When_Last_Login {
 
     public function wll_hide_subscription_notice(){
     if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
-        wp_die( __( 'Nonce is invalid', 'pmpro-pdf-invoices' ) );
+        wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
     }
