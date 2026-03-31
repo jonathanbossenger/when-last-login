@@ -1,6 +1,9 @@
 <?php $settings = get_option( 'wll_settings' ); ?>
 
-<?php if( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ){ $checked = 1; } else { $checked = 0; } ?>
+<?php
+if ( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ) { $checked = 1; } else { $checked = 0; }
+$track_all_records = isset( $settings['track_all_records'] ) ? intval( $settings['track_all_records'] ) : 1;
+?>
 <table class="form-table">
 	<tr>
 		<th><h2><?php esc_html_e( 'Options' , 'when-last-login' ); ?></h2></th>
@@ -11,7 +14,15 @@
 		<td><input type='checkbox' value='1' name='wll_record_user_ip_address' <?php checked( 1, $checked ); ?>/>
 			<small><?php esc_html_e( 'This will anonymize the IP address to support GDPR regulations.', 'when-last-login' ); ?></small></td>
 	</tr>
+	<tr>
+		<th><?php esc_html_e( 'Enable All Login Records', 'when-last-login' ); ?><br></th>
+		<td><input type='checkbox' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
+			<small><?php 
+			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='https://yoohooplugins.com/plugins/when-last-login-user-statistics/' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
+		?></small></td>
+	</tr>
 
+	<?php if ( $track_all_records ) : ?>
 	<tr>
 		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
 		<td></td>
@@ -56,6 +67,7 @@
 		<th><?php esc_html_e( 'Clear all IP addresses', 'when-last-login' ); ?></th>
 		<td><a href="javascript:void(0);" onclick="wll_remove_all_ips(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
 	</tr>
+	<?php endif; ?>
 
 	<tr>
 		<input type="hidden" name="_nonce" value="<?php echo wp_create_nonce( 'wll_settings_nonce' ); ?>">

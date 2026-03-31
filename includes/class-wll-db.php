@@ -635,7 +635,7 @@ class WLL_DB {
 	 * @param  array  $login_data Optional. Additional login data.
 	 * @return bool              True on success.
 	 */
-	public static function record_login( $user_id, $login_data = array() ) {
+	public static function record_login( $user_id, $login_data = array(), $include_record = true ) {
 		global $wpdb;
 
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
@@ -655,6 +655,10 @@ class WLL_DB {
 				$now
 			)
 		);
+
+		if ( ! $include_record ) {
+			return true;
+		}
 
 		// Insert into login records.
 		$defaults = array(

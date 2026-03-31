@@ -248,10 +248,12 @@ class When_Last_Login {
 
       // Save to database tables.
       if ( class_exists( 'WLL_DB' ) ) {
+        $track_all_records = ! isset( $wll_settings['track_all_records'] ) || intval( $wll_settings['track_all_records'] ) === 1;
+
         $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
-        $browser    = When_Last_Login::parse_browser( $user_agent );
-        $os         = When_Last_Login::parse_os( $user_agent );
-        $device     = When_Last_Login::parse_device( $user_agent );
+        $browser    = $track_all_records ? When_Last_Login::parse_browser( $user_agent ) : '';
+        $os         = $track_all_records ? When_Last_Login::parse_os( $user_agent ) : '';
+        $device     = $track_all_records ? When_Last_Login::parse_device( $user_agent ) : '';
 
         WLL_DB::record_login( $user->ID, array(
           'ip_address' => $ip,
@@ -259,7 +261,7 @@ class When_Last_Login {
           'browser'    => $browser,
           'os'         => $os,
           'device'     => $device,
-        ) );
+        ), $track_all_records );
       }
 
       do_action( 'wll_logged_in_action', array( 'login_count' => $wll_new_value, 'user' => $user ), $wll_settings );
@@ -356,12 +358,18 @@ class When_Last_Login {
              
                 ?>
 
+                <?php
+                $wll_widget_settings = get_option( 'wll_settings' );
+                $wll_widget_track_all = ! isset( $wll_widget_settings['track_all_records'] ) || intval( $wll_widget_settings['track_all_records'] ) === 1;
+                ?>
                 <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
+                <?php if ( $wll_widget_track_all ) : ?>
                 | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); ?></a>
-                <?php                
-                    
+                <?php endif; ?>
+                <?php
+
             }
-        
+
         } else {
 
             ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
@@ -402,9 +410,15 @@ class When_Last_Login {
 
         ?>
 
+        <?php
+        $wll_widget_settings = get_option( 'wll_settings' );
+        $wll_widget_track_all = ! isset( $wll_widget_settings['track_all_records'] ) || intval( $wll_widget_settings['track_all_records'] ) === 1;
+        ?>
         <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
+        <?php if ( $wll_widget_track_all ) : ?>
         | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); ?></a>
-        <?php    
+        <?php endif; ?>
+        <?php
 
         }
 
@@ -448,7 +462,7 @@ class When_Last_Login {
 
           $when_last_login_ip_address = get_user_meta( $id, 'wll_user_ip_address', true );
 
-          if ( $when_last_login_ip_address && $when_last_login_ip_address != "" && $settings['record_ip_address'] != "") {
+          if ( ! empty( $when_last_login_ip_address ) && ! empty( $settings['record_ip_address'] ) ) {
             return "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
           } else {
             return esc_html__( 'IP Address Not Recorded', 'when-last-login' );
@@ -542,8 +556,11 @@ class When_Last_Login {
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Settings', 'when-last-login'), __('Settings', 'when-last-login'), 'manage_options', 'when-last-login-settings', array( $this, 'wll_settings_callback' ) );
 
-      $records_hook = add_submenu_page( 'when-last-login-settings', esc_html__('Login Records', 'when-last-login'), __('Login Records', 'when-last-login'), 'manage_options', 'wll-login-records', array( $this, 'wll_login_records_callback' ) );
-      add_action( 'load-' . $records_hook, array( $this, 'wll_login_records_load' ) );
+      $wll_menu_settings = get_option( 'wll_settings' );
+      if ( ! isset( $wll_menu_settings['track_all_records'] ) || intval( $wll_menu_settings['track_all_records'] ) === 1 ) {
+        $records_hook = add_submenu_page( 'when-last-login-settings', esc_html__('Login Records', 'when-last-login'), __('Login Records', 'when-last-login'), 'manage_options', 'wll-login-records', array( $this, 'wll_login_records_callback' ) );
+        add_action( 'load-' . $records_hook, array( $this, 'wll_login_records_load' ) );
+      }
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Extensions', 'when-last-login'), __('Extensions', 'when-last-login'), 'manage_options', 'admin.php?page=when-last-login-settings&tab=add-ons' );
       
@@ -615,6 +632,7 @@ class When_Last_Login {
 
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
+          $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
