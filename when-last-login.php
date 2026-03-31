@@ -655,20 +655,70 @@ class When_Last_Login {
 
       if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
 
-        $nonce = $_REQUEST['wll_remove_ip_nonce'];
-        if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
+          $nonce = $_REQUEST['wll_remove_ip_nonce'];
+          if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
 
-          $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
+            $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
 
-          if ( $wpdb->query( $sql ) > 0 ) {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
+            if ( $wpdb->query( $sql ) > 0 ) {
+              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
+            } else {
+              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
+            }
           } else {
-            add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
+            die( 'nonce not valid.' );
           }
-        } else {
-          die( 'nonce not valid.' );
         }
-      }
+
+        // Remove old login records (90+ days).
+        if ( isset( $_REQUEST['wll_remove_old_records'] ) ) {
+
+          $nonce = isset( $_REQUEST['wll_remove_old_records_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_old_records_nonce'] ) : '';
+          if ( wp_verify_nonce( $nonce, 'wll_remove_old_records_nonce' ) ) {
+            $deleted = WLL_DB::delete_old_records( 90 );
+            if ( $deleted > 0 ) {
+              add_action( 'admin_notices', function() use ( $deleted ) {
+                printf(
+                  '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                  sprintf(
+                    /* translators: %d: number of records deleted */
+                    esc_html__( '%d old login records deleted.', 'when-last-login' ),
+                    intval( $deleted )
+                  )
+                );
+              } );
+            } else {
+              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
+            }
+          } else {
+            wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
+          }
+        }
+
+        // Remove all login records.
+        if ( isset( $_REQUEST['wll_remove_all_records'] ) ) {
+
+          $nonce = isset( $_REQUEST['wll_remove_all_records_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_all_records_nonce'] ) : '';
+          if ( wp_verify_nonce( $nonce, 'wll_remove_all_records_nonce' ) ) {
+            $deleted = WLL_DB::delete_all_records();
+            if ( $deleted > 0 ) {
+              add_action( 'admin_notices', function() use ( $deleted ) {
+                printf(
+                  '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                  sprintf(
+                    /* translators: %d: number of records deleted */
+                    esc_html__( '%d login records deleted.', 'when-last-login' ),
+                    intval( $deleted )
+                  )
+                );
+              } );
+            } else {
+              add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
+            }
+          } else {
+            wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
+          }
+        }
     }
 
     public function wll_plugin_action_links( $links ) {

@@ -874,6 +874,45 @@ class WLL_DB {
 
 		return $result;
 	}
+
+	/**
+	 * Delete login records older than a specified number of days.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $days Number of days.
+	 * @return int      Number of records deleted.
+	 */
+	public static function delete_old_records( $days = 90 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$date_threshold = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+
+		return $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM $records_table WHERE login_time < %s",
+				$date_threshold
+			)
+		);
+	}
+
+	/**
+	 * Delete all login records.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return int Number of records deleted.
+	 */
+	public static function delete_all_records() {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		return $wpdb->query( "DELETE FROM $records_table" );
+	}
 }
 
 // Initialize.

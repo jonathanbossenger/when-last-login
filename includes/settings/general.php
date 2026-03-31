@@ -16,23 +16,45 @@
 		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
 		<td></td>
 	</tr>
-	<!-- loaded from general.php -->
-	<?php 
+	<?php
+		$old_records_message = esc_html__( 'Are you sure you want to clear records older than 90 days?', 'when-last-login' );
+		$all_records_message = esc_html__( 'Are you sure you want to clear all login records?', 'when-last-login' );
 		$all_ip_message = esc_html__( 'Are you sure you want to remove all IP addresses?', 'when-last-login' );
+		$remove_old_nonce = wp_create_nonce( 'wll_remove_old_records_nonce' );
+		$remove_all_nonce = wp_create_nonce( 'wll_remove_all_records_nonce' );
 		$remove_ip_nonce = wp_create_nonce( 'wll_remove_ip_nonce' );
 	?>
-
-		<script>
-			function wll_remove_all_ips(){
-				if( window.confirm('<?php echo $all_ip_message; ?>')) {
-					window.location.href = "<?php echo add_query_arg( array( 'remove_wll_ip_addresses' => '1', 'wll_remove_ip_nonce' => $remove_ip_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
-				}
+	<script>
+		function wll_remove_old_records(){
+			if( window.confirm('<?php echo $old_records_message; ?>')) {
+				window.location.href = "<?php echo add_query_arg( array( 'wll_remove_old_records' => '1', 'wll_remove_old_records_nonce' => $remove_old_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
 			}
+		}
+		function wll_remove_all_records(){
+			if( window.confirm('<?php echo $all_records_message; ?>')) {
+				window.location.href = "<?php echo add_query_arg( array( 'wll_remove_all_records' => '1', 'wll_remove_all_records_nonce' => $remove_all_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
+			}
+		}
+		function wll_remove_all_ips(){
+			if( window.confirm('<?php echo $all_ip_message; ?>')) {
+				window.location.href = "<?php echo add_query_arg( array( 'remove_wll_ip_addresses' => '1', 'wll_remove_ip_nonce' => $remove_ip_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
+			}
+		}
 	</script>
 
 	<tr>
-		<th><?php esc_html_e( 'Clear all IP Addresses', 'when-last-login' ); ?></th>
-		<td><a href="javascript:void(0);" onclick="wll_remove_all_ips(); return false;" class="button-primary"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
+		<th><?php esc_html_e( 'Clear old logs (90+ days)', 'when-last-login' ); ?></th>
+		<td><a href="javascript:void(0);" onclick="wll_remove_old_records(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
+	</tr>
+
+	<tr>
+		<th><?php esc_html_e( 'Clear all login records', 'when-last-login' ); ?></th>
+		<td><a href="javascript:void(0);" onclick="wll_remove_all_records(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
+	</tr>
+
+	<tr>
+		<th><?php esc_html_e( 'Clear all IP addresses', 'when-last-login' ); ?></th>
+		<td><a href="javascript:void(0);" onclick="wll_remove_all_ips(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
 	</tr>
 
 	<tr>
