@@ -531,7 +531,8 @@ class When_Last_Login {
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Settings', 'when-last-login'), __('Settings', 'when-last-login'), 'manage_options', 'when-last-login-settings', array( $this, 'wll_settings_callback' ) );
 
-      add_submenu_page( 'when-last-login-settings', esc_html__('Login Records', 'when-last-login'), __('Login Records', 'when-last-login'), 'manage_options', 'wll-login-records', array( $this, 'wll_login_records_callback' ) );
+      $records_hook = add_submenu_page( 'when-last-login-settings', esc_html__('Login Records', 'when-last-login'), __('Login Records', 'when-last-login'), 'manage_options', 'wll-login-records', array( $this, 'wll_login_records_callback' ) );
+      add_action( 'load-' . $records_hook, array( $this, 'wll_login_records_load' ) );
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Extensions', 'when-last-login'), __('Extensions', 'when-last-login'), 'manage_options', 'admin.php?page=when-last-login-settings&tab=add-ons' );
       
@@ -540,12 +541,11 @@ class When_Last_Login {
     }
 
     /**
-     * Login records page callback.
+     * Fires before the login records page renders, allowing redirects.
      *
      * @since  1.3.0
      */
-    public function wll_login_records_callback() {
-      // Process bulk actions and redirect if needed (before any output).
+    public function wll_login_records_load() {
       $list_table = new WLL_List_Table();
       $deleted = $list_table->process_bulk_action();
 
@@ -553,7 +553,14 @@ class When_Last_Login {
         wp_redirect( add_query_arg( 'deleted', $deleted, admin_url( 'admin.php?page=wll-login-records' ) ) );
         exit;
       }
+    }
 
+    /**
+     * Login records page callback.
+     *
+     * @since  1.3.0
+     */
+    public function wll_login_records_callback() {
       // Display success notice after redirect.
       if ( ! empty( $_REQUEST['deleted'] ) ) {
         printf(
@@ -566,6 +573,7 @@ class When_Last_Login {
         );
       }
 
+      $list_table = new WLL_List_Table();
       $list_table->prepare_items();
 
       ?>
