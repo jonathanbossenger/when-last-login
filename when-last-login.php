@@ -575,7 +575,7 @@ class When_Last_Login {
         <h1><?php esc_html_e( 'Login Records', 'when-last-login' ); ?></h1>
         <?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
         <form method="post">
-          <input type="hidden" name="page" value="<?php echo esc_attr( $_REQUEST['page'] ); ?>" />
+          <input type="hidden" name="page" value="<?php echo esc_attr( isset( $_REQUEST['page'] ) ? $_REQUEST['page'] : 'wll-login-records' ); ?>" />
           <?php $list_table->display(); ?>
         </form>
       </div>
