@@ -439,7 +439,7 @@ class WLL_DB {
 		}
 
 		// Update database version.
-		update_option( self::VERSION_OPTION, self::$db_version );
+		update_option( self::VERSION_OPTION, WLL_VER );
 
 		/**
 		 * Fires after 1.3.0 upgrade completes.
@@ -532,19 +532,16 @@ class WLL_DB {
 			return;
 		}
 
-		$batch_size = apply_filters( 'wll_migration_batch_size', 500 );
+		$batch_size = apply_filters( 'wll_migration_batch_size', 1000 );
 
-		$args = array(
-			'post_type'      => 'wll_records',
-			'post_status'    => 'any',
-			'posts_per_page' => $batch_size,
-			'orderby'        => 'ID',
-			'order'          => 'ASC',
-			'fields'         => 'ids',
+		// Direct SQL avoids WP_Query overhead (filters, object cache, extra joins).
+		$post_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC LIMIT %d",
+				'wll_records',
+				$batch_size
+			)
 		);
-
-		$query = new WP_Query( $args );
-		$post_ids = $query->posts;
 
 		if ( empty( $post_ids ) ) {
 			$status['status']    = 'complete';
@@ -553,42 +550,72 @@ class WLL_DB {
 			return;
 		}
 
-		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
-		$migrated = 0;
+		$records_table   = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$ids_placeholder = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
 
-		foreach ( $post_ids as $post_id ) {
-			$post = get_post( $post_id );
+		// Fetch post data and IP meta in a single JOIN query instead of N+1 calls.
+		$posts = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.ID, p.post_author, p.post_date,
+				        pm.meta_value AS ip_address
+				 FROM {$wpdb->posts} p
+				 LEFT JOIN {$wpdb->postmeta} pm
+				        ON pm.post_id = p.ID AND pm.meta_key = 'wll_user_ip_address'
+				 WHERE p.ID IN ($ids_placeholder)",
+				$post_ids
+			)
+		);
 
-			if ( ! $post ) {
-				continue;
-			}
+		// Build a single bulk INSERT instead of one query per record.
+		$placeholders = array();
+		$values       = array();
 
-			$user_id    = $post->post_author;
-			$login_time = $post->post_date;
-			$ip_address = get_post_meta( $post_id, 'wll_user_ip_address', true );
-
-			// Insert into login records table.
-			$wpdb->insert(
-				$records_table,
-				array(
-					'user_id'    => $user_id,
-					'login_time' => $login_time,
-					'ip_address' => $ip_address,
-				),
-				array( '%d', '%s', '%s' )
-			);
-
-			$migrated++;
+		foreach ( $posts as $post ) {
+			$placeholders[] = '(%d, %s, %s)';
+			$values[]       = absint( $post->post_author );
+			$values[]       = $post->post_date;
+			$values[]       = sanitize_text_field( (string) $post->ip_address );
 		}
 
-		// Update status.
-		$status['migrated'] += $migrated;
-		$status['status']    = 'in_progress';
-		update_option( 'wll_migration_status', $status );
+		if ( ! empty( $placeholders ) ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO $records_table (user_id, login_time, ip_address) VALUES "
+					. implode( ', ', $placeholders ),
+					$values
+				)
+			);
+		}
 
-		// Schedule next batch.
-		if ( $migrated > 0 ) {
-			wp_schedule_single_event( time() + 10, 'wll_migrate_login_records' );
+		// Delete migrated posts and meta immediately per batch.
+		// This distributes the deletion load and avoids the separate cleanup step.
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->postmeta} WHERE post_id IN ($ids_placeholder)",
+				$post_ids
+			)
+		);
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->posts} WHERE ID IN ($ids_placeholder)",
+				$post_ids
+			)
+		);
+
+		$status['migrated'] += count( $posts );
+
+		// Check whether any posts remain before deciding to schedule another batch.
+		$remaining = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(ID) FROM {$wpdb->posts} WHERE post_type = %s",
+				'wll_records'
+			)
+		);
+
+		if ( $remaining > 0 ) {
+			$status['status'] = 'in_progress';
+			update_option( 'wll_migration_status', $status );
+			wp_schedule_single_event( time() + 5, 'wll_migrate_login_records' );
 		} else {
 			$status['status']    = 'complete';
 			$status['completed'] = current_time( 'mysql' );
@@ -608,7 +635,7 @@ class WLL_DB {
 	 * @param  array  $login_data Optional. Additional login data.
 	 * @return bool              True on success.
 	 */
-	public static function record_login( $user_id, $login_data = array() ) {
+	public static function record_login( $user_id, $login_data = array(), $include_record = true ) {
 		global $wpdb;
 
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
@@ -628,6 +655,10 @@ class WLL_DB {
 				$now
 			)
 		);
+
+		if ( ! $include_record ) {
+			return true;
+		}
 
 		// Insert into login records.
 		$defaults = array(
@@ -807,6 +838,34 @@ class WLL_DB {
 	}
 
 	/**
+	 * Delete specific login records by ID.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  array $ids Record IDs to delete.
+	 * @return int       Number of records deleted.
+	 */
+	public static function delete_records( $ids ) {
+		global $wpdb;
+
+		if ( empty( $ids ) || ! is_array( $ids ) ) {
+			return 0;
+		}
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$ids = array_map( 'absint', $ids );
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+		return $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM $records_table WHERE id IN ($placeholders)",
+				$ids
+			)
+		);
+	}
+
+	/**
 	 * Clean up migrated posts.
 	 *
 	 * @since  1.3.0
@@ -842,6 +901,45 @@ class WLL_DB {
 		do_action( 'wll_cleanup_migrated_posts', $result );
 
 		return $result;
+	}
+
+	/**
+	 * Delete login records older than a specified number of days.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $days Number of days.
+	 * @return int      Number of records deleted.
+	 */
+	public static function delete_old_records( $days = 90 ) {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$date_threshold = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+
+		return $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM $records_table WHERE login_time < %s",
+				$date_threshold
+			)
+		);
+	}
+
+	/**
+	 * Delete all login records.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return int Number of records deleted.
+	 */
+	public static function delete_all_records() {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		return $wpdb->query( "DELETE FROM $records_table" );
 	}
 }
 
