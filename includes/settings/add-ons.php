@@ -6,7 +6,7 @@ if ( false === $content || $content == '' ) {
 
     $url = 'https://yoohooplugins.com/api/add-ons-when-last-login/v1/products.php';
 
-    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'sslverify' => false ) );
+    $add_ons_request = wp_remote_get( esc_url_raw( $url ), array( 'timeout' => 15 ) );
 
     if ( ! is_wp_error( $add_ons_request ) ) {
 
@@ -26,5 +26,5 @@ if ( false === $content || $content == '' ) {
 
 }
 
-echo $content;
+echo wp_kses_post( $content );
 
