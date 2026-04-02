@@ -483,8 +483,11 @@ class When_Last_Login {
 
     public static function sort_by_login_date( $query ) {
       if ( 'when_last_login' == $query->get( 'orderby' ) ) {
-        $query->set( 'orderby', 'meta_value_num' );
-        $query->set( 'meta_key', 'when_last_login' );
+        // Skip sorting during search to avoid filtering out users without login meta.
+        if ( ! is_admin() || ! isset( $_GET['s'] ) || empty( $_GET['s'] ) ) {
+          $query->set( 'orderby', 'meta_value_num' );
+          $query->set( 'meta_key', 'when_last_login' );
+        }
       }
     }
 
