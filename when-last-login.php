@@ -108,9 +108,8 @@ class When_Last_Login {
 
         global $wpdb;
 
-        $delete_table = $wpdb->prefix . 'wll_login_attempts' ;
-        $sql = "DROP TABLE IF EXISTS `$delete_table`";
-        $wpdb->query( $sql );
+        $delete_table = $wpdb->prefix . 'wll_login_attempts';
+        $wpdb->query( $wpdb->prepare( "DROP TABLE IF EXISTS %s", $delete_table ) );
 
         delete_transient( 'when_last_login_add_ons_page' );
 
@@ -694,9 +693,9 @@ class When_Last_Login {
           $nonce = $_REQUEST['wll_remove_ip_nonce'];
           if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
 
-            $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
+            $result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s", 'wll_user_ip_address' ) );
 
-            if ( $wpdb->query( $sql ) > 0 ) {
+            if ( $result > 0 ) {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
             } else {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );

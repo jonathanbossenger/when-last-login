@@ -939,7 +939,7 @@ class WLL_DB {
 
 		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 
-		return $wpdb->query( "DELETE FROM $records_table" );
+		return $wpdb->query( "DELETE FROM {$records_table}" );
 	}
 }
 
