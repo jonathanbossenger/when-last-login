@@ -7,9 +7,6 @@
  * add, remove, or update products.
  */
 
-// ─────────────────────────────────────────────
-// Add-on definitions — edit this array as needed
-// ─────────────────────────────────────────────
 $wll_add_ons = apply_filters(
 	'wll_add_ons_list',
 	array(
