@@ -6,9 +6,9 @@ $tabs = array(
 		'icon' => ''
 	),
 	'add-ons' => array(
-		'title' => __( 'Add-ons', 'when-last-login' ),
+		'title' => __( 'Add Ons', 'when-last-login' ),
 		'icon' => ''
-	)
+	),
 );
 
 $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
@@ -65,7 +65,7 @@ $wll_migration_active = ! empty( $wll_migration_status ) && $wll_migration_statu
 		
 	</h2> 
 
-	<?php 
+	<?php
 	if( isset( $_GET['tab'] ) && $_GET['tab'] == 'add-ons' ){
 		include 'settings/add-ons.php';
 	} else {
@@ -73,10 +73,10 @@ $wll_migration_active = ! empty( $wll_migration_status ) && $wll_migration_statu
 	<form method='POST'><table class="form-table">
 
 	<?php
-		
+
 		$content = array(
 			'general' => 'settings/general.php',
-			'add-ons' => 'settings/add-ons.php'
+			'add-ons' => 'settings/add-ons.php',
 		);
 
 		$content = apply_filters( 'wll_settings_page_content', $content );

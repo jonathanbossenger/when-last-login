@@ -568,7 +568,7 @@ class When_Last_Login {
         add_action( 'load-' . $records_hook, array( $this, 'wll_login_records_load' ) );
       }
 
-      add_submenu_page( 'when-last-login-settings', esc_html__('Extensions', 'when-last-login'), __('Extensions', 'when-last-login'), 'manage_options', 'admin.php?page=when-last-login-settings&tab=add-ons' );
+      add_submenu_page( 'when-last-login-settings', esc_html__('Add Ons', 'when-last-login'), __('Add Ons', 'when-last-login'), 'manage_options', 'wll-add-ons', array( $this, 'wll_add_ons_callback' ) );
       
       do_action( 'wll_settings_admin_menu_item' );
 
@@ -625,6 +625,14 @@ class When_Last_Login {
     public function wll_settings_callback(){
 
       include WLL_DIR_PATH . '/includes/settings.php';
+
+    }
+
+    public function wll_add_ons_callback(){
+
+      echo '<div class="wrap">';
+      include WLL_DIR_PATH . '/includes/settings/add-ons.php';
+      echo '</div>';
 
     }
 
