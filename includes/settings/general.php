@@ -3,6 +3,8 @@
 <?php
 if ( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ) { $checked = 1; } else { $checked = 0; }
 $track_all_records = isset( $settings['track_all_records'] ) ? intval( $settings['track_all_records'] ) : 1;
+$show_wc_last_active = isset( $settings['show_wc_last_active'] ) && intval( $settings['show_wc_last_active'] ) == 1;
+$woocommerce_active = class_exists( 'WooCommerce' );
 ?>
 <table class="form-table">
 	<tr>
@@ -21,6 +23,14 @@ $track_all_records = isset( $settings['track_all_records'] ) ? intval( $settings
 			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='https://yoohooplugins.com/plugins/when-last-login-user-statistics/' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
 		?></small></td>
 	</tr>
+
+	<?php if ( $woocommerce_active ) : ?>
+	<tr>
+		<th><?php esc_html_e( 'Show WooCommerce Last Active', 'when-last-login' ); ?><br></th>
+		<td><input type='checkbox' value='1' name='wll_show_wc_last_active' <?php checked( 1, $show_wc_last_active ); ?>/>
+			<small><?php esc_html_e( 'Display the WooCommerce last active column on the users list. Shows when customers were last active on your store.', 'when-last-login' ); ?></small></td>
+	</tr>
+	<?php endif; ?>
 
 	<?php if ( $track_all_records ) : ?>
 	<tr>

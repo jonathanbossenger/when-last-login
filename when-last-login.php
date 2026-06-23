@@ -108,9 +108,8 @@ class When_Last_Login {
 
         global $wpdb;
 
-        $delete_table = $wpdb->prefix . 'wll_login_attempts' ;
-        $sql = "DROP TABLE IF EXISTS `$delete_table`";
-        $wpdb->query( $sql );
+        $delete_table = $wpdb->prefix . 'wll_login_attempts';
+        $wpdb->query( $wpdb->prepare( "DROP TABLE IF EXISTS %s", $delete_table ) );
 
         delete_transient( 'when_last_login_add_ons_page' );
 
@@ -147,7 +146,7 @@ class When_Last_Login {
     }
 
     public static function text_domain(){
-      load_plugin_textdomain( 'when-last-login', false, dirname( 'WLL_BASE_NAME' ) . '/languages' );
+      load_plugin_textdomain( 'when-last-login', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
     }
 
     public static function update_notice(){
@@ -162,8 +161,11 @@ class When_Last_Login {
       }
     }
 
-    public function wll_hide_subscription_notice(){
-    if ( ! wp_verify_nonce( $_REQUEST['nonce'], 'wll_hide_notice_nonce' ) ) {
+        public function wll_hide_subscription_notice(){
+      if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( -1 );
+      }
+      if ( ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
@@ -314,7 +316,7 @@ class When_Last_Login {
                 foreach( $sites as $site ){
                 
                     $blog_id = $site->blog_id;
-                    $blog_details = get_blog_details( $blog_id );
+                    $blog_details = get_site( $blog_id );
                 
                     ?><table width="100%" text-align="center" class='wp-list-table striped widefat'>          
                     <tr>
@@ -342,7 +344,7 @@ class When_Last_Login {
                             echo '<tr><td>' . esc_html( intval( $count ) ) . '</td>';
                             echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
                             echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
-                            echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
+                            echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
                             $count++;
                         }
                       
@@ -393,10 +395,10 @@ class When_Last_Login {
                 $count = 1;
                 
                 foreach($topusers as $wllusers){
-                    echo '<tr><td>' . esc_html( intval( $count ) ) . '</td>';
+                    echo '<tr><td>' . intval( $count ) . '</td>';
                     echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
                     echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
-                    echo '<td>' . esc_html( date_i18n( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
+                    echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
                     $count++;
                 }
               
@@ -435,7 +437,11 @@ class When_Last_Login {
       if ( ! empty( $settings['record_ip_address'] ) ) {
         $column['when_last_login_ip_address'] = esc_html__( 'IP Address', 'when-last-login' );
       }
-      
+
+      // Add WooCommerce Last Active column if enabled and WooCommerce is active
+      if ( ! empty( $settings['show_wc_last_active'] ) && class_exists( 'WooCommerce' ) ) {
+        $column['wc_last_active'] = esc_html__( 'WC Last Active', 'when-last-login' );
+      }
 
        return $column;
      }
@@ -469,6 +475,17 @@ class When_Last_Login {
           }
 
 
+        } else if( $column_name == 'wc_last_active' ){
+          // WooCommerce Last Active column
+          if ( class_exists( 'WooCommerce' ) ) {
+            $wc_last_active = get_user_meta( $id, 'wc_last_active', true );
+            if ( ! empty( $wc_last_active ) ) {
+              return human_time_diff( $wc_last_active );
+            } else {
+              return esc_html__( 'Never', 'when-last-login' );
+            }
+          }
+          return '';
         }
       return $value;
      }
@@ -480,8 +497,11 @@ class When_Last_Login {
 
     public static function sort_by_login_date( $query ) {
       if ( 'when_last_login' == $query->get( 'orderby' ) ) {
-        $query->set( 'orderby', 'meta_value_num' );
-        $query->set( 'meta_key', 'when_last_login' );
+        // Skip sorting during search to avoid filtering out users without login meta.
+        if ( ! is_admin() || ! isset( $_GET['s'] ) || empty( $_GET['s'] ) ) {
+          $query->set( 'orderby', 'meta_value_num' );
+          $query->set( 'meta_key', 'when_last_login' );
+        }
       }
     }
 
@@ -509,7 +529,7 @@ class When_Last_Login {
       if( ! empty( $users->when_last_login ) ){
         echo esc_html( human_time_diff( $users->when_last_login ) );
       }else{
-        echo esc_html_e( 'Never', 'when-last-login' );
+        echo esc_html__( 'Never', 'when-last-login' );
       }
 ?>
       </td>
@@ -562,7 +582,7 @@ class When_Last_Login {
         add_action( 'load-' . $records_hook, array( $this, 'wll_login_records_load' ) );
       }
 
-      add_submenu_page( 'when-last-login-settings', esc_html__('Extensions', 'when-last-login'), __('Extensions', 'when-last-login'), 'manage_options', 'admin.php?page=when-last-login-settings&tab=add-ons' );
+      add_submenu_page( 'when-last-login-settings', esc_html__('Add Ons', 'when-last-login'), __('Add Ons', 'when-last-login'), 'manage_options', 'wll-add-ons', array( $this, 'wll_add_ons_callback' ) );
       
       do_action( 'wll_settings_admin_menu_item' );
 
@@ -622,6 +642,14 @@ class When_Last_Login {
 
     }
 
+    public function wll_add_ons_callback(){
+
+      echo '<div class="wrap">';
+      include WLL_DIR_PATH . '/includes/settings/add-ons.php';
+      echo '</div>';
+
+    }
+
     public function wll_settings_page_head(){
 
       $wll_settings = array();
@@ -633,6 +661,7 @@ class When_Last_Login {
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
           $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
+          $wll_settings['show_wc_last_active'] = isset( $_POST['wll_show_wc_last_active'] ) && sanitize_text_field( $_POST['wll_show_wc_last_active'] ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
@@ -641,7 +670,7 @@ class When_Last_Login {
             add_action( 'admin_notices', array( $this, 'wll_admin_notices' ) );
           }
         } else {
-          die( 'nonce not valid' );
+          wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
         }
 
       }
@@ -694,9 +723,9 @@ class When_Last_Login {
           $nonce = $_REQUEST['wll_remove_ip_nonce'];
           if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
 
-            $sql = "DELETE FROM $wpdb->usermeta WHERE meta_key = 'wll_user_ip_address'";
+            $result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s", 'wll_user_ip_address' ) );
 
-            if ( $wpdb->query( $sql ) > 0 ) {
+            if ( $result > 0 ) {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
             } else {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
@@ -783,12 +812,12 @@ class When_Last_Login {
 
     public static function wll_get_user_ip_address(){
 
-      if( !empty( $_SERVER['HTTP_CLIENT_IP'] ) ){
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-      } else if ( !empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ){
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+      if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
+        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
+      } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
       } else {
-        $ip = $_SERVER['REMOTE_ADDR'];
+        $ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
       }
 
       $ip = apply_filters( 'wll_user_ip_address', $ip );
@@ -798,8 +827,6 @@ class When_Last_Login {
       } else {
         return IpAnonymizer::anonymizeIp( $ip );
       }
-      
-      return IpAnonymizer::anonymizeIp( $ip );
     }
 
     /**
