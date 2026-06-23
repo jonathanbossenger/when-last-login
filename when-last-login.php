@@ -341,7 +341,7 @@ class When_Last_Login {
                         $count = 1;
                         
                         foreach($topusers as $wllusers){
-                            echo '<tr><td>' . intval( $count ) . '</td>';
+                            echo '<tr><td>' . esc_html( intval( $count ) ) . '</td>';
                             echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
                             echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
                             echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
@@ -364,9 +364,9 @@ class When_Last_Login {
                 $wll_widget_settings = get_option( 'wll_settings' );
                 $wll_widget_track_all = ! isset( $wll_widget_settings['track_all_records'] ) || intval( $wll_widget_settings['track_all_records'] ) === 1;
                 ?>
-                <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
+                <a href="<?php echo esc_url( admin_url( 'users.php?orderby=when_last_login&order=desc' ) ); ?>"><?php _e( 'View All Users', 'when-last-login' ); ?></a>
                 <?php if ( $wll_widget_track_all ) : ?>
-                | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); ?></a>
+                | <a href="<?php echo esc_url( admin_url( 'admin.php?page=wll-login-records' ) ); ?>"><?php _e( 'View Login Records', 'when-last-login' ); ?></a>
                 <?php endif; ?>
                 <?php
 
@@ -527,7 +527,7 @@ class When_Last_Login {
       <td>
 <?php
       if( ! empty( $users->when_last_login ) ){
-        echo human_time_diff( $users->when_last_login );
+        echo esc_html( human_time_diff( $users->when_last_login ) );
       }else{
         echo esc_html__( 'Never', 'when-last-login' );
       }
