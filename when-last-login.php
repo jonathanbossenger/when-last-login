@@ -438,7 +438,11 @@ class When_Last_Login {
       if ( ! empty( $settings['record_ip_address'] ) ) {
         $column['when_last_login_ip_address'] = esc_html__( 'IP Address', 'when-last-login' );
       }
-      
+
+      // Add WooCommerce Last Active column if enabled and WooCommerce is active
+      if ( ! empty( $settings['show_wc_last_active'] ) && class_exists( 'WooCommerce' ) ) {
+        $column['wc_last_active'] = esc_html__( 'WC Last Active', 'when-last-login' );
+      }
 
        return $column;
      }
@@ -472,6 +476,17 @@ class When_Last_Login {
           }
 
 
+        } else if( $column_name == 'wc_last_active' ){
+          // WooCommerce Last Active column
+          if ( class_exists( 'WooCommerce' ) ) {
+            $wc_last_active = get_user_meta( $id, 'wc_last_active', true );
+            if ( ! empty( $wc_last_active ) ) {
+              return human_time_diff( $wc_last_active );
+            } else {
+              return esc_html__( 'Never', 'when-last-login' );
+            }
+          }
+          return '';
         }
       return $value;
      }
@@ -639,6 +654,7 @@ class When_Last_Login {
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
           $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
+          $wll_settings['show_wc_last_active'] = isset( $_POST['wll_show_wc_last_active'] ) && sanitize_text_field( $_POST['wll_show_wc_last_active'] ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
