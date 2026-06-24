@@ -532,7 +532,7 @@ class WLL_DB {
 			return;
 		}
 
-		$batch_size = apply_filters( 'wll_migration_batch_size', 1000 );
+		$batch_size = apply_filters( 'wll_migration_batch_size', WLL_BATCH_SIZE * 2 );
 
 		// Direct SQL avoids WP_Query overhead (filters, object cache, extra joins).
 		$post_ids = $wpdb->get_col(
@@ -912,10 +912,13 @@ class WLL_DB {
 	 * @param  int $days Number of days.
 	 * @return int      Number of records deleted.
 	 */
-	public static function delete_old_records( $days = 90 ) {
+	public static function delete_old_records( $days = 0 ) {
 		global $wpdb;
 
 		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		if ( $days <= 0 ) {
+			$days = WLL_CLEANUP_DAYS;
+		}
 		$date_threshold = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
 
 		return $wpdb->query(
