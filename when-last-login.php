@@ -474,7 +474,7 @@ class When_Last_Login {
           $when_last_login_ip_address = get_user_meta( $id, 'wll_user_ip_address', true );
 
           if ( ! empty( $when_last_login_ip_address ) && ! empty( $settings['record_ip_address'] ) ) {
-            return "<a href='http://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
+            return "<a href='https://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
           } else {
             return esc_html__( 'IP Address Not Recorded', 'when-last-login' );
           }
