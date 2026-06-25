@@ -136,22 +136,22 @@ function wll_populate_summary_from_user_meta() {
 
 	$summary_table = $wpdb->prefix . 'when_last_login';
 
-	// Get all users with login data.
-	$args = array(
-		'meta_key'     => 'when_last_login',
-		'meta_compare' => 'EXISTS',
-		'fields'       => array( 'ID' ),
-		'number'       => 500,
-	);
+	// Get all users with login data in batches.
+		$args = array(
+			'meta_key'     => 'when_last_login',
+			'meta_compare' => 'EXISTS',
+			'fields'       => array( 'ID' ),
+			'number'       => WLL_BATCH_SIZE,
+		);
 
-	$page = 1;
-	while ( true ) {
-		$args['paged'] = $page;
-		$users = get_users( $args );
+		$page = 1;
+		while ( true ) {
+			$args['paged'] = $page;
+			$users = get_users( $args );
 
-		if ( empty( $users ) ) {
-			break;
-		}
+			if ( empty( $users ) ) {
+				break;
+			}
 
 		foreach ( $users as $user ) {
 			$last_login_ts = get_user_meta( $user->ID, 'when_last_login', true );
@@ -184,7 +184,7 @@ function wll_populate_summary_from_user_meta() {
 		$page++;
 
 		// Prevent timeout on large sites.
-		if ( $page % 10 === 0 ) {
+		if ( 0 === $page % 10 ) {
 			sleep( 1 );
 		}
 	}
@@ -204,7 +204,7 @@ function wll_migrate_records_batch() {
 		return;
 	}
 
-	$batch_size = apply_filters( 'wll_migration_batch_size', 500 );
+	$batch_size = apply_filters( 'wll_migration_batch_size', WLL_BATCH_SIZE );
 	$records_table = $wpdb->prefix . 'wll_login_records';
 
 	$args = array(

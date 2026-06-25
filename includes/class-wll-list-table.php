@@ -93,7 +93,7 @@ class WLL_List_Table extends WP_List_Table {
 
 			case 'ip_address':
 				if ( ! empty( $item->ip_address ) ) {
-					esc_attr( $item->ip_address );
+					return esc_html( $item->ip_address );
 				}
 				return esc_html__( 'Not Recorded', 'when-last-login' );
 

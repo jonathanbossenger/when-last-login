@@ -13,6 +13,11 @@ Domain Path: /languages
 use geertw\IpAnonymizer\IpAnonymizer;
 
 define( 'WLL_VER', '1.3.0' );
+// Constants for magic numbers.
+define( 'WLL_BATCH_SIZE', 500 );
+define( 'WLL_CLEANUP_DAYS', 90 );
+define( 'WLL_WIDGET_USER_COUNT', 3 );
+
 
 class When_Last_Login {
 
@@ -103,23 +108,22 @@ class When_Last_Login {
 
       $current_version = floatval( get_option( 'wll_current_version' ) );
 
-      // Clean up stuff for version 1.0
-      if( $current_version < 1.0 || empty( $current_version ) ) {
-
+      // Clean up legacy data from versions before 1.0.
+      // Note: This is retained for sites that may have skipped the 1.0 upgrade.
+      if ( $current_version < 1.0 && ! empty( $current_version ) ) {
         global $wpdb;
 
         $delete_table = $wpdb->prefix . 'wll_login_attempts';
-        $wpdb->query( $wpdb->prepare( "DROP TABLE IF EXISTS %s", $delete_table ) );
+        $sql = "DROP TABLE IF EXISTS `$delete_table`";
+        $wpdb->query( $sql );
 
         delete_transient( 'when_last_login_add_ons_page' );
 
-        // on upgrade remove the notice save.
         delete_option( 'wll_notice_hide' );
         delete_option( 'wll_notice_hide_1' );
         delete_option( 'wll_notice_hide_2' );
 
-        // update version number to 1.0
-       update_option( 'wll_current_version', 1.2 );
+        update_option( 'wll_current_version', WLL_VER );
       }
     }
 
@@ -151,7 +155,7 @@ class When_Last_Login {
 
     public static function update_notice(){
 
-      if( get_option( 'wll_notice_hide' ) != '1' && ( isset( $_REQUEST['page'] ) && $_REQUEST['page'] == 'when-last-login-settings' ) ){
+      if ( get_option( 'wll_notice_hide' ) !== '1' && isset( $_REQUEST['page'] ) && 'when-last-login-settings' === $_REQUEST['page'] ) {
         ?>
         <div class="notice notice-success  wll-update-notice-newsletter is-dismissible" >
         <h3><?php _e('Thank you for using When Last Login', 'when-last-login'); ?></h3>
@@ -252,7 +256,8 @@ class When_Last_Login {
       if ( class_exists( 'WLL_DB' ) ) {
         $track_all_records = ! isset( $wll_settings['track_all_records'] ) || intval( $wll_settings['track_all_records'] ) === 1;
 
-        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
+        $user_agent = filter_input( INPUT_SERVER, 'HTTP_USER_AGENT', FILTER_SANITIZE_SPECIAL_CHARS );
+        $user_agent = $user_agent ? sanitize_text_field( wp_unslash( $user_agent ) ) : '';
         $browser    = $track_all_records ? When_Last_Login::parse_browser( $user_agent ) : '';
         $os         = $track_all_records ? When_Last_Login::parse_os( $user_agent ) : '';
         $device     = $track_all_records ? When_Last_Login::parse_device( $user_agent ) : '';
@@ -324,7 +329,7 @@ class When_Last_Login {
                     </tr>                      
                     <?php
 
-                    $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', 3 ), 'blog_id' => $blog_id, 'role__not_in' => array( 'administrator' ) ) );
+                    $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', WLL_WIDGET_USER_COUNT ), 'blog_id' => $blog_id, 'role__not_in' => array( 'administrator' ) ) );
 
                     $topusers = $user_query->get_results();
 
@@ -378,7 +383,7 @@ class When_Last_Login {
 
             <?php
 
-            $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', 3 ), 'role__not_in' => array( 'administrator' ) ) );
+            $user_query = new WP_User_Query( array( 'meta_key' => 'when_last_login_count', 'meta_value' => 0, 'meta_compare' => '!=', 'order' => 'DESC', 'orderby' => 'meta_value_num', 'number' => apply_filters( 'wll_top_widget_user_count', WLL_WIDGET_USER_COUNT ), 'role__not_in' => array( 'administrator' ) ) );
 
             $topusers = $user_query->get_results();
 
@@ -713,8 +718,13 @@ class When_Last_Login {
         return;
       }
 
-      // Bail if not on our settings page
-      if ( 'admin.php' == $pagenow && 'when-last-login-settings' != $_GET['page'] ) {
+      // Bail if user cannot manage options.
+      if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+      }
+
+      // Bail if not on our settings page.
+      if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) || 'when-last-login-settings' !== $_GET['page'] ) {
         return;
       }
 
@@ -740,7 +750,7 @@ class When_Last_Login {
 
           $nonce = isset( $_REQUEST['wll_remove_old_records_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_old_records_nonce'] ) : '';
           if ( wp_verify_nonce( $nonce, 'wll_remove_old_records_nonce' ) ) {
-            $deleted = WLL_DB::delete_old_records( 90 );
+            $deleted = WLL_DB::delete_old_records( WLL_CLEANUP_DAYS );
             if ( $deleted > 0 ) {
               add_action( 'admin_notices', function() use ( $deleted ) {
                 printf(
