@@ -200,7 +200,7 @@ function wll_migrate_records_batch() {
 
 	$status = get_option( 'wll_migration_status', array() );
 
-	if ( empty( $status ) || $status['status'] === 'complete' ) {
+	if ( empty( $status ) || ! isset( $status['status'] ) || $status['status'] === 'complete' ) {
 		return;
 	}
 
