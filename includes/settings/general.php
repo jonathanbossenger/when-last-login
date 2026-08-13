@@ -20,7 +20,7 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 		<th><?php esc_html_e( 'Enable All Login Records', 'when-last-login' ); ?><br></th>
 		<td><input type='checkbox' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
 			<small><?php 
-			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='https://yoohooplugins.com/plugins/when-last-login-user-statistics/' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
+			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='" . esc_url( 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/' ) . "' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
 		?></small></td>
 	</tr>
 
@@ -47,18 +47,18 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 	?>
 	<script>
 		function wll_remove_old_records(){
-			if( window.confirm('<?php echo $old_records_message; ?>')) {
-				window.location.href = "<?php echo add_query_arg( array( 'wll_remove_old_records' => '1', 'wll_remove_old_records_nonce' => $remove_old_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
+			if( window.confirm('<?php echo esc_js( $old_records_message ); ?>')) {
+				window.location.href = "<?php echo esc_js( add_query_arg( array( 'wll_remove_old_records' => '1', 'wll_remove_old_records_nonce' => $remove_old_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
 			}
 		}
 		function wll_remove_all_records(){
-			if( window.confirm('<?php echo $all_records_message; ?>')) {
-				window.location.href = "<?php echo add_query_arg( array( 'wll_remove_all_records' => '1', 'wll_remove_all_records_nonce' => $remove_all_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
+			if( window.confirm('<?php echo esc_js( $all_records_message ); ?>')) {
+				window.location.href = "<?php echo esc_js( add_query_arg( array( 'wll_remove_all_records' => '1', 'wll_remove_all_records_nonce' => $remove_all_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
 			}
 		}
 		function wll_remove_all_ips(){
-			if( window.confirm('<?php echo $all_ip_message; ?>')) {
-				window.location.href = "<?php echo add_query_arg( array( 'remove_wll_ip_addresses' => '1', 'wll_remove_ip_nonce' => $remove_ip_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ); ?>";
+			if( window.confirm('<?php echo esc_js( $all_ip_message ); ?>')) {
+				window.location.href = "<?php echo esc_js( add_query_arg( array( 'remove_wll_ip_addresses' => '1', 'wll_remove_ip_nonce' => $remove_ip_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
 			}
 		}
 	</script>

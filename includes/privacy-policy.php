@@ -145,7 +145,7 @@ function plugin_user_data_eraser( $email_address, $page = 1 ) {
 		if ( $deleted_when_last_login ) {
 			$items_removed = true;
 		} else {
-			$messages[] = __( 'Your last login timestamp was unable to be removed at this time.', 'when-last-login' );
+			$messages[] = esc_html__( 'Your last login timestamp was unable to be removed at this time.', 'when-last-login' );
 			$items_retained = true;
 		}
 		

@@ -169,7 +169,7 @@ class When_Last_Login {
       if ( ! current_user_can( 'manage_options' ) ) {
         wp_die( -1 );
       }
-      if ( ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
+      if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'wll_hide_notice_nonce' ) ) {
         wp_die( __( 'Nonce is invalid', 'when-last-login' ) );
       }
       update_option( 'wll_notice_hide', '1' );
@@ -400,7 +400,7 @@ class When_Last_Login {
                 $count = 1;
                 
                 foreach($topusers as $wllusers){
-                    echo '<tr><td>' . intval( $count ) . '</td>';
+                    echo '<tr><td>' . esc_html( intval( $count ) ) . '</td>';
                     echo '<td>' . esc_html( $wllusers->display_name ) . '</td>';
                     echo '<td>' . esc_html( get_user_meta( $wllusers->ID, 'when_last_login_count', true ) ) . '</td>';
                     echo '<td>' . esc_html( wp_date( 'Y-m-d H:i:s', get_user_meta( $wllusers->ID, 'when_last_login', true ) ) ) . '</td></tr>';
@@ -474,7 +474,7 @@ class When_Last_Login {
           $when_last_login_ip_address = get_user_meta( $id, 'wll_user_ip_address', true );
 
           if ( ! empty( $when_last_login_ip_address ) && ! empty( $settings['record_ip_address'] ) ) {
-            return "<a href='https://www.ip-adress.com/ip_tracer/". esc_attr( $when_last_login_ip_address ) ."' target='_BLANK' title='".__( 'Lookup', 'when-last-login' )."'>" . esc_html( $when_last_login_ip_address ) . "</a>";
+            return "<a href='" . esc_url( 'https://www.ip-adress.com/ip_tracer/' . $when_last_login_ip_address ) . "' target='_BLANK' title='" . esc_attr__( 'Lookup', 'when-last-login' ) . "'>" . esc_html( $when_last_login_ip_address ) . "</a>";
           } else {
             return esc_html__( 'IP Address Not Recorded', 'when-last-login' );
           }
@@ -661,7 +661,7 @@ class When_Last_Login {
 
       if( isset( $_POST['wll_save_settings'] ) ){
 
-        if( wp_verify_nonce( $_POST['_nonce'], 'wll_settings_nonce' ) ) {
+        if( isset( $_POST['_nonce'] ) && wp_verify_nonce( $_POST['_nonce'], 'wll_settings_nonce' ) ) {
 
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
@@ -730,8 +730,8 @@ class When_Last_Login {
 
       if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
 
-          $nonce = $_REQUEST['wll_remove_ip_nonce'];
-          if ( wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
+          $nonce = isset( $_REQUEST['wll_remove_ip_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_ip_nonce'] ) : '';
+          if ( $nonce && wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
 
             $result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s", 'wll_user_ip_address' ) );
 

@@ -528,7 +528,7 @@ class WLL_DB {
 
 		$status = get_option( 'wll_migration_status', array() );
 
-		if ( empty( $status ) || $status['status'] === 'complete' ) {
+		if ( empty( $status ) || ! isset( $status['status'] ) || $status['status'] === 'complete' ) {
 			return;
 		}
 
@@ -876,7 +876,7 @@ class WLL_DB {
 	public static function cleanup_migrated_posts() {
 		$migration_status = get_option( 'wll_migration_status', array() );
 
-		if ( empty( $migration_status ) || $migration_status['status'] !== 'complete' ) {
+		if ( empty( $migration_status ) || ! isset( $migration_status['status'] ) || $migration_status['status'] !== 'complete' ) {
 			return 0;
 		}
 
