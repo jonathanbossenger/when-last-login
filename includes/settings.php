@@ -1,4 +1,13 @@
 <?php
+/**
+ * Settings page template for When Last Login.
+ *
+ * @package When_Last_Login
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 $tabs = array(
 	'general' => array(
@@ -14,7 +23,7 @@ $tabs = array(
 $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
 
 $wll_migration_status = get_option( 'wll_migration_status', array() );
-$wll_migration_active = ! empty( $wll_migration_status ) && $wll_migration_status['status'] !== 'complete';
+$wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] !== 'complete';
 
 ?>
 
@@ -39,7 +48,7 @@ $wll_migration_active = ! empty( $wll_migration_status ) && $wll_migration_statu
 <?php endif; ?>
 
 <div id="wll-setting-header">
-	<img src="<?php echo WLL_PLUGIN . '/includes/images/whenlastlogin.png'; ?>" width="300px" height="auto" style="margin-top:2%;"/><span style="position:relative;top:-15px;"><?php echo 'v' . WLL_VER; ?></span>
+	<img src="<?php echo esc_url( WLL_PLUGIN . '/includes/images/whenlastlogin.png' ); ?>" width="300px" height="auto" style="margin-top:2%;"/><span style="position:relative;top:-15px;"><?php echo esc_html( 'v' . WLL_VER ); ?></span>
 </div>
 <div class='wrap'>
 

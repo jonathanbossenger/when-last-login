@@ -1,6 +1,16 @@
-<?php $settings = get_option( 'wll_settings' ); ?>
-
 <?php
+/**
+ * General settings tab for When Last Login.
+ *
+ * @package When_Last_Login
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+$settings = get_option( 'wll_settings' );
+
 if ( isset( $settings['record_ip_address'] ) && intval( $settings['record_ip_address'] ) == 1 ) { $checked = 1; } else { $checked = 0; }
 $track_all_records = isset( $settings['track_all_records'] ) ? intval( $settings['track_all_records'] ) : 1;
 $show_wc_last_active = isset( $settings['show_wc_last_active'] ) && intval( $settings['show_wc_last_active'] ) == 1;
