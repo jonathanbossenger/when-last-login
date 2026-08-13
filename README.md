@@ -5,7 +5,7 @@
 <h1 align="center">When Last Login</h1>
 
 <p align="center">
-  <a href="https://yoohooplugins.com/plugins/when-last-login/">Plugin Page</a> •
+  <a href="https://whenlastlogin.com">Plugin Page</a> •
   <a href="https://wordpress.org/plugins/when-last-login/">WordPress.org</a> •
   <a href="https://github.com/Yoohoo-Plugins/when-last-login">GitHub</a>
 </p>
@@ -19,7 +19,7 @@
 
 ## Welcome to When Last Login
 
-[When Last Login](https://yoohooplugins.com/plugins/when-last-login/) is a lightweight WordPress plugin that allows you to see active users according to their last login time/date. Simply activate the plugin and you're ready to go!
+[When Last Login](https://whenlastlogin.com) is a lightweight WordPress plugin that allows you to see active users according to their last login time/date. Simply activate the plugin and you're ready to go!
 
 This plugin adds a custom "Last Login" column to your WordPress users list, showing a human-readable timestamp for each user. Sort users by their last login time to quickly identify active and inactive members.
 
