@@ -10,6 +10,10 @@ Text Domain: when-last-login
 Domain Path: /languages
 */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 use geertw\IpAnonymizer\IpAnonymizer;
 
 define( 'WLL_VER', '1.3.0' );
