@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://ps.w.org/when-last-login/assets/icon-256x256.png" alt="When Last Login" />
+  <img src="https://ps.w.org/when-last-login/assets/banner-1544x500.jpg?rev=1839963" alt="When Last Login" width="772" />
 </p>
 
 <h1 align="center">When Last Login</h1>
