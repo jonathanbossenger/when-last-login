@@ -81,6 +81,9 @@ function wll_upgrade_1_3_0() {
 	// Populate summary table from existing user meta.
 	wll_populate_summary_from_user_meta();
 
+	// Set migration lock to prevent race conditions.
+	set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
+
 	// Count posts to migrate.
 	$args = array(
 		'post_type'      => 'wll_records',
@@ -118,6 +121,9 @@ function wll_upgrade_1_3_0() {
 	// Update database version.
 	update_option( 'wll_db_version', '1.3.0' );
 
+	// Release lock after upgrade completes.
+	delete_transient( 'wll_migration_lock' );
+
 	/**
 	 * Fires after 1.3.0 upgrade completes.
 	 *
@@ -136,26 +142,29 @@ function wll_populate_summary_from_user_meta() {
 
 	$summary_table = $wpdb->prefix . 'when_last_login';
 
-	// Get all users with login data in batches.
+	// Ensure batch size constant is defined.
+	$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+
+	// Use offset-based pagination for reliability.
+	$offset = 0;
+
+	while ( true ) {
 		$args = array(
 			'meta_key'     => 'when_last_login',
 			'meta_compare' => 'EXISTS',
 			'fields'       => array( 'ID' ),
-			'number'       => WLL_BATCH_SIZE,
+			'number'       => $batch_size,
+			'offset'       => $offset,
 		);
+		$users = get_users( $args );
 
-		$page = 1;
-		while ( true ) {
-			$args['paged'] = $page;
-			$users = get_users( $args );
-
-			if ( empty( $users ) ) {
-				break;
-			}
+		if ( empty( $users ) ) {
+			break;
+		}
 
 		foreach ( $users as $user ) {
 			$last_login_ts = get_user_meta( $user->ID, 'when_last_login', true );
-			$login_count    = get_user_meta( $user->ID, 'when_last_login_count', true );
+			$login_count = get_user_meta( $user->ID, 'when_last_login_count', true );
 
 			if ( empty( $last_login_ts ) ) {
 				continue;
@@ -181,10 +190,10 @@ function wll_populate_summary_from_user_meta() {
 			);
 		}
 
-		$page++;
+		$offset += $batch_size;
 
 		// Prevent timeout on large sites.
-		if ( 0 === $page % 10 ) {
+		if ( 0 === ( $offset / $batch_size ) % 10 ) {
 			sleep( 1 );
 		}
 	}
@@ -204,7 +213,15 @@ function wll_migrate_records_batch() {
 		return;
 	}
 
-	$batch_size = apply_filters( 'wll_migration_batch_size', WLL_BATCH_SIZE );
+	// Check migration lock to prevent concurrent runs.
+	if ( get_transient( 'wll_migration_lock' ) ) {
+		return;
+	}
+	set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
+
+	// Ensure batch size constant is defined.
+	$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+	$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch );
 	$records_table = $wpdb->prefix . 'wll_login_records';
 
 	$args = array(
