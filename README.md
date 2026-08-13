@@ -1,9 +1,21 @@
-![When Last Login](https://ps.w.org/when-last-login/assets/icon-256x256.png)
+<p align="center">
+  <img src="https://ps.w.org/when-last-login/assets/icon-256x256.png" alt="When Last Login" />
+</p>
 
-# [When Last Login](https://yoohooplugins.com/plugins/when-last-login/) #
+<h1 align="center">When Last Login</h1>
 
-![License](https://img.shields.io/badge/license-GPL--2.0%2B-red.svg?style=flat-square)
-![WordPress Tested](https://img.shields.io/badge/tested%20up%20to-6.8-blue.svg?style=flat-square)
+<p align="center">
+  <a href="https://yoohooplugins.com/plugins/when-last-login/">Plugin Page</a> •
+  <a href="https://wordpress.org/plugins/when-last-login/">WordPress.org</a> •
+  <a href="https://github.com/Yoohoo-Plugins/when-last-login">GitHub</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-GPL--2.0%2B-red.svg?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/tested%20up%20to-6.8-blue.svg?style=flat-square" alt="WordPress Tested" />
+</p>
+
+---
 
 ## Welcome to When Last Login
 
