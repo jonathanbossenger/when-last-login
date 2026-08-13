@@ -460,40 +460,59 @@ class WLL_DB {
 
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
 
-		// Get all users with login data.
-		$users = get_users( array(
-			'meta_key'     => 'when_last_login',
-			'meta_compare' => 'EXISTS',
-			'fields'       => array( 'ID' ),
-			'number'       => 1000,
-		) );
+		// Ensure batch size constant is defined.
+		$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
 
-		foreach ( $users as $user ) {
-			$last_login = get_user_meta( $user->ID, 'when_last_login', true );
-			$login_count = get_user_meta( $user->ID, 'when_last_login_count', true );
+		// Use offset-based pagination for reliability.
+		$offset = 0;
 
-			if ( empty( $last_login ) ) {
-				continue;
+		while ( true ) {
+			$users = get_users( array(
+				'meta_key'     => 'when_last_login',
+				'meta_compare' => 'EXISTS',
+				'fields'       => array( 'ID' ),
+				'number'       => $batch_size,
+				'offset'       => $offset,
+			) );
+
+			if ( empty( $users ) ) {
+				break;
 			}
 
-			// Convert timestamp to datetime.
-			$login_time = is_numeric( $last_login )
-				? gmdate( 'Y-m-d H:i:s', $last_login )
-				: $last_login;
+			foreach ( $users as $user ) {
+				$last_login = get_user_meta( $user->ID, 'when_last_login', true );
+				$login_count = get_user_meta( $user->ID, 'when_last_login_count', true );
 
-			// Upsert into summary table.
-			$wpdb->query(
-				$wpdb->prepare(
-					"INSERT INTO $summary_table (user_id, last_login, login_count)
-					 VALUES (%d, %s, %d)
-					 ON DUPLICATE KEY UPDATE
-					 last_login = VALUES(last_login),
-					 login_count = VALUES(login_count)",
-					$user->ID,
-					$login_time,
-					absint( $login_count ) ?: 1
-				)
-			);
+				if ( empty( $last_login ) ) {
+					continue;
+				}
+
+				// Convert timestamp to datetime.
+				$login_time = is_numeric( $last_login )
+					? gmdate( 'Y-m-d H:i:s', $last_login )
+					: $last_login;
+
+				// Upsert into summary table.
+				$wpdb->query(
+					$wpdb->prepare(
+						"INSERT INTO $summary_table (user_id, last_login, login_count)
+						 VALUES (%d, %s, %d)
+						 ON DUPLICATE KEY UPDATE
+						 last_login = VALUES(last_login),
+						 login_count = VALUES(login_count)",
+						$user->ID,
+						$login_time,
+						absint( $login_count ) ?: 1
+					)
+				);
+			}
+
+			$offset += $batch_size;
+
+			// Prevent timeout on large sites.
+			if ( 0 === ( $offset / $batch_size ) % 10 ) {
+				sleep( 1 );
+			}
 		}
 	}
 
@@ -532,7 +551,15 @@ class WLL_DB {
 			return;
 		}
 
-		$batch_size = apply_filters( 'wll_migration_batch_size', WLL_BATCH_SIZE * 2 );
+		// Check migration lock to prevent concurrent runs.
+		if ( get_transient( 'wll_migration_lock' ) ) {
+			return;
+		}
+		set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
+
+		// Ensure batch size constant is defined.
+		$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+		$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch * 2 );
 
 		// Direct SQL avoids WP_Query overhead (filters, object cache, extra joins).
 		$post_ids = $wpdb->get_col(
@@ -621,6 +648,9 @@ class WLL_DB {
 			$status['completed'] = current_time( 'mysql' );
 			update_option( 'wll_migration_status', $status );
 		}
+
+		// Release lock after batch.
+		delete_transient( 'wll_migration_lock' );
 	}
 
 	/**
