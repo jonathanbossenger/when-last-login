@@ -86,7 +86,7 @@ Help translate When Last Login into your language at [translate.wordpress.org](h
 
 ## Contributing
 
-We welcome contributions! Please read the contributing guidelines before submitting a pull request.
+We welcome contributions!
 
 Ways to contribute:
 
@@ -94,6 +94,7 @@ Ways to contribute:
 2. Submit pull requests with bug fixes or new features
 3. Help translate the plugin into your language
 4. Leave a [review on WordPress.org](https://wordpress.org/support/plugin/when-last-login/reviews/)
+5. [Purchase a premium add-on](https://yoohooplugins.com/plugins/when-last-login-pro/) to support development
 
 ## License
 
