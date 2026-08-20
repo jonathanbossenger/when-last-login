@@ -34,7 +34,7 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 		<td><label>
 			<input type='checkbox' id='wll_track_all_records' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
 			<small><?php
-			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='" . esc_url( admin_url( 'admin.php?page=when-last-login-settings&tab=add-ons' ) ) . "'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
+			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='" . esc_url( 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/' ) . "' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
 			?></small>
 		</label></td>
 	</tr>
