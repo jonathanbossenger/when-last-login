@@ -22,6 +22,13 @@ $tabs = array(
 
 $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
 
+//Add Ons should always render last, regardless of what filters add/reorder.
+if ( isset( $tabs['add-ons'] ) ) {
+	$wll_add_ons_tab = $tabs['add-ons'];
+	unset( $tabs['add-ons'] );
+	$tabs['add-ons'] = $wll_add_ons_tab;
+}
+
 $wll_migration_status = get_option( 'wll_migration_status', array() );
 $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] !== 'complete';
 
