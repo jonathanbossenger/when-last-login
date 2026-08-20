@@ -23,29 +23,37 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 		<td></td>
 	</tr>
 	<tr>
-		<th><?php esc_html_e( "Record user's IP address", "when-last-login" ); ?><br></th>
-		<td><input type='checkbox' value='1' name='wll_record_user_ip_address' <?php checked( 1, $checked ); ?>/>
-			<small><?php esc_html_e( 'This will anonymize the IP address to support GDPR regulations.', 'when-last-login' ); ?></small></td>
+		<th><label for="wll_record_user_ip_address"><?php esc_html_e( "Record user's IP address", "when-last-login" ); ?></label><br></th>
+		<td><label>
+			<input type='checkbox' id='wll_record_user_ip_address' value='1' name='wll_record_user_ip_address' <?php checked( 1, $checked ); ?>/>
+			<small><?php esc_html_e( 'This will anonymize the IP address to support GDPR regulations.', 'when-last-login' ); ?></small>
+		</label></td>
 	</tr>
 	<tr>
-		<th><?php esc_html_e( 'Enable All Login Records', 'when-last-login' ); ?><br></th>
-		<td><input type='checkbox' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
-			<small><?php 
+		<th><label for="wll_track_all_records"><?php esc_html_e( 'Enable All Login Records', 'when-last-login' ); ?></label><br></th>
+		<td><label>
+			<input type='checkbox' id='wll_track_all_records' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
+			<small><?php
 			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='" . esc_url( 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/' ) . "' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
-		?></small></td>
+			?></small>
+		</label></td>
 	</tr>
 
 	<?php if ( $woocommerce_active ) : ?>
 	<tr>
-		<th><?php esc_html_e( 'Show WooCommerce Last Active', 'when-last-login' ); ?><br></th>
-		<td><input type='checkbox' value='1' name='wll_show_wc_last_active' <?php checked( 1, $show_wc_last_active ); ?>/>
-			<small><?php esc_html_e( 'Display the WooCommerce last active column on the users list. Shows when customers were last active on your store.', 'when-last-login' ); ?></small></td>
+		<th><label for="wll_show_wc_last_active"><?php esc_html_e( 'Show WooCommerce Last Active', 'when-last-login' ); ?></label><br></th>
+		<td><label>
+			<input type='checkbox' id='wll_show_wc_last_active' value='1' name='wll_show_wc_last_active' <?php checked( 1, $show_wc_last_active ); ?>/>
+			<small><?php esc_html_e( 'Display the WooCommerce last active column on the users list. Shows when customers were last active on your store.', 'when-last-login' ); ?></small>
+		</label></td>
 	</tr>
 	<?php endif; ?>
 	<tr>
-		<th><?php esc_html_e( 'Hide Admin Menu (Streamline Mode)', 'when-last-login' ); ?><br></th>
-		<td><input type='checkbox' value='1' name='wll_hide_admin_menu' <?php checked( 1, $hide_admin_menu ); ?>/>
-			<small><?php esc_html_e( 'Hide the WLL admin menu and dashboard widget. Login tracking continues in the background. Users list column still shows last login data.', 'when-last-login' ); ?></small></td>
+		<th><label for="wll_hide_admin_menu"><?php esc_html_e( 'Hide Admin Menu (Streamline Mode)', 'when-last-login' ); ?></label><br></th>
+		<td><label>
+			<input type='checkbox' id='wll_hide_admin_menu' value='1' name='wll_hide_admin_menu' <?php checked( 1, $hide_admin_menu ); ?>/>
+			<small><?php esc_html_e( 'Hide the WLL admin menu and dashboard widget. Login tracking continues in the background. Users list column still shows last login data.', 'when-last-login' ); ?></small>
+		</label></td>
 	</tr>
 
 	<?php if ( $track_all_records ) : ?>
