@@ -82,8 +82,9 @@ class When_Last_Login {
         //Streamline mode: still expose the settings under Settings > When Last Login so it can be turned back off.
         add_action( 'admin_menu', array( $this, 'wll_settings_page_streamlined' ), 9 );
       }
-      add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
+      add_action( 'admin_init', array( $this, 'wll_settings_page_head' ) );
       add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
+      add_action( 'admin_notices', array( $this, 'wll_admin_notices' ) );
       add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
       add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
 
@@ -681,12 +682,15 @@ class When_Last_Login {
 
     public function wll_settings_page_head(){
 
-      $wll_settings = array();
+      if ( empty( $_GET['page'] ) || 'when-last-login-settings' !== $_GET['page'] ) {
+        return;
+      }
 
       if( isset( $_POST['wll_save_settings'] ) ){
 
         if( isset( $_POST['_nonce'] ) && wp_verify_nonce( $_POST['_nonce'], 'wll_settings_nonce' ) ) {
 
+          $wll_settings = array();
           $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
           $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
           $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
@@ -695,10 +699,20 @@ class When_Last_Login {
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
-          if ( update_option( 'wll_settings', $wll_settings ) ) {
-            //show admin notice here.
-            add_action( 'admin_notices', array( $this, 'wll_admin_notices' ) );
+          update_option( 'wll_settings', $wll_settings );
+
+          //Redirect back (rather than just rendering) so the admin menu, dashboard widget, and
+          //notice all reflect the freshly-saved settings on a real page load - this matters most
+          //for hide_admin_menu, since that changes which menu registers on 'admin_menu'.
+          $redirect_args = array(
+            'page' => 'when-last-login-settings',
+            'wll-settings-updated' => '1',
+          );
+          if ( ! empty( $_GET['tab'] ) ) {
+            $redirect_args['tab'] = sanitize_text_field( $_GET['tab'] );
           }
+          wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
+          exit;
         } else {
           wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
         }
@@ -708,6 +722,10 @@ class When_Last_Login {
     }
 
     public function wll_admin_notices() {
+
+      if ( empty( $_GET['wll-settings-updated'] ) ) {
+        return;
+      }
     ?>
       <div class="notice notice-success is-dismissible">
         <p><?php esc_html_e( 'Settings saved successfully.', 'when-last-login' ); ?></p>
