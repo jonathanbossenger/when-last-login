@@ -78,11 +78,14 @@ class When_Last_Login {
       add_filter( 'pmpro_memberslist_csv_extra_column_data', array( $this, 'pmpro_csv_export_row' ), 10, 2 );
       if ( ! $hide_admin ) {
         add_action( 'admin_menu', array( $this, 'wll_settings_page' ), 9 );
-        add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
-        add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
-        add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
-        add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
+      } else {
+        //Streamline mode: still expose the settings under Settings > When Last Login so it can be turned back off.
+        add_action( 'admin_menu', array( $this, 'wll_settings_page_streamlined' ), 9 );
       }
+      add_action( 'admin_head', array( $this, 'wll_settings_page_head' ) );
+      add_action( 'admin_init', array( $this, 'wll_automatically_remove_logs' ) );
+      add_filter( 'plugin_row_meta', array( $this, 'wll_plugin_row_meta' ), 10, 2 );
+      add_filter( 'plugin_action_links_' . WLL_BASENAME, array( $this, 'wll_plugin_action_links' ), 10, 2 );
 
       /**
       * Multisite support
@@ -597,8 +600,20 @@ class When_Last_Login {
       }
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Add Ons', 'when-last-login'), __('Add Ons', 'when-last-login'), 'manage_options', 'wll-add-ons', array( $this, 'wll_add_ons_callback' ) );
-      
+
       do_action( 'wll_settings_admin_menu_item' );
+
+    }
+
+    /**
+     * Registers the settings page under Settings instead of a top-level menu item.
+     * Used when streamline mode ("hide_admin_menu") is enabled, so the setting can still be turned back off.
+     *
+     * @since  1.10.0
+     */
+    public function wll_settings_page_streamlined(){
+
+      add_options_page( __('When Last Login', 'when-last-login'), esc_html__('When Last Login', 'when-last-login'), 'manage_options', 'when-last-login-settings', array( $this, 'wll_settings_callback' ) );
 
     }
 
@@ -734,7 +749,7 @@ class When_Last_Login {
       }
 
       // Bail if not on our settings page.
-      if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) || 'when-last-login-settings' !== $_GET['page'] ) {
+      if ( ! in_array( $pagenow, array( 'admin.php', 'options-general.php' ), true ) || ! isset( $_GET['page'] ) || 'when-last-login-settings' !== $_GET['page'] ) {
         return;
       }
 
