@@ -59,19 +59,13 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 </div>
 <div class='wrap'>
 
+	<?php $current_tab = isset( $_GET['tab'] ) ? $_GET['tab'] : 'general'; ?>
+
 	<h2 class="nav-tab-wrapper"><?php
 
 	foreach( $tabs as $key => $val ){
-		
-		$active = '';
 
-		if( isset( $_GET['tab'] ) && $_GET['tab'] == $key ){
-			$active = 'nav-tab-active';
-		} else {
-			if( $key == 'general' ){
-				$active = 'nav-tab-active';
-			}
-		}
+		$active = ( $current_tab == $key ) ? 'nav-tab-active' : '';
 
 		echo '<a class="nav-tab ' . esc_attr( $active ) . '" href="?page=when-last-login-settings&tab=' . esc_attr( $key ) . '">' . esc_html( $val['title'] ) . '</a>';
 
@@ -96,12 +90,6 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 		);
 
 		$content = apply_filters( 'wll_settings_page_content', $content );
-
-		if( isset( $_GET['tab'] ) ){
-			$current_tab = $_GET['tab'];
-		} else {
-			$current_tab = 'general';
-		}
 
 		foreach( $content as $key => $val ){
 
