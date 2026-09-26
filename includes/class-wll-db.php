@@ -73,6 +73,19 @@ class WLL_DB {
 	}
 
 	/**
+	 * Create tables and run the 1.3.0 upgrade without a capability check.
+	 *
+	 * Used from the activation hook (WP-CLI has no current user).
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 */
+	public static function activate_schema() {
+		self::create_tables();
+		self::upgrade_1_3_0();
+	}
+
+	/**
 	 * Check and run database migrations if needed.
 	 *
 	 * @since  1.3.0
@@ -485,8 +498,10 @@ class WLL_DB {
 	 *
 	 * @param int|null $total Optional total records.
 	 */
-	private static function mark_migration_complete( $total = null ) {
-		$status = get_option( 'wll_migration_status', array() );
+	private static function mark_migration_complete( $total = null, $status = null ) {
+		if ( ! is_array( $status ) ) {
+			$status = get_option( 'wll_migration_status', array() );
+		}
 		if ( ! is_array( $status ) ) {
 			$status = array();
 		}
@@ -664,7 +679,7 @@ class WLL_DB {
 		);
 
 		if ( empty( $post_ids ) ) {
-			self::mark_migration_complete();
+			self::mark_migration_complete( null, $status );
 			delete_transient( 'wll_migration_lock' );
 			return;
 		}
@@ -741,7 +756,7 @@ class WLL_DB {
 			update_option( 'wll_migration_status', $status );
 			self::schedule_migration( 5 );
 		} else {
-			self::mark_migration_complete();
+			self::mark_migration_complete( null, $status );
 		}
 
 		// Release lock after batch.

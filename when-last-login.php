@@ -42,7 +42,6 @@ class When_Last_Login {
       include WLL_DIR_PATH . '/includes/lib/IpAnonymizer.php';
       include WLL_DIR_PATH . '/includes/privacy-policy.php';
       include WLL_DIR_PATH . '/includes/class-wll-db.php';
-      include WLL_DIR_PATH . '/includes/migration-helper.php';
 
       add_action( 'admin_init', array( $this, 'admin_init' ) );
       add_action( 'plugins_loaded', array( $this, 'text_domain' ) );
@@ -1087,7 +1086,7 @@ class When_Last_Login {
       if ( ! class_exists( 'WLL_DB' ) ) {
         require_once plugin_dir_path( __FILE__ ) . 'includes/class-wll-db.php';
       }
-      WLL_DB::create_tables();
+      WLL_DB::activate_schema();
     }
 
     /**
