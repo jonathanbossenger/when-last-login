@@ -42,16 +42,15 @@ class When_Last_Login {
       include WLL_DIR_PATH . '/includes/lib/IpAnonymizer.php';
       include WLL_DIR_PATH . '/includes/privacy-policy.php';
       include WLL_DIR_PATH . '/includes/class-wll-db.php';
-      include WLL_DIR_PATH . '/includes/class-wll-list-table.php';
 
       add_action( 'admin_init', array( $this, 'admin_init' ) );
-      add_action( 'admin_init', array( $this, 'check_db_version' ) );
       add_action( 'plugins_loaded', array( $this, 'text_domain' ) );
       add_action( 'admin_enqueue_scripts', array( $this, 'load_js_for_notice' ) );
 
       //Create the custom meta upon login
       add_action( 'wp_login', array( $this, 'last_login'), 10, 2 );
       add_action( 'user_register', array( $this, 'wll_user_register' ), 10, 1 );
+      add_action( 'deleted_user', array( $this, 'delete_user_login_data' ), 10, 1 );
       add_action( 'two_factor_user_authenticated', array( $this, 'two_factor_user_authenticated' ), 10, 2 );
 
       //Admin actions - only load if not in streamline mode
@@ -140,28 +139,6 @@ class When_Last_Login {
       }
     }
 
-    /**
-     * Check and run database migrations.
-     *
-     * @since 1.3.0
-     */
-    public static function check_db_version() {
-      if ( ! current_user_can( 'manage_options' ) ) {
-        return;
-      }
-
-      $current_db_version = get_option( 'wll_db_version', '1.0.0' );
-
-      // Upgrade to 1.3.0 - Create login records table.
-      if ( version_compare( $current_db_version, '1.3.0', '<' ) ) {
-        // Load the upgrade file.
-        if ( file_exists( WLL_DIR_PATH . 'includes/updates/upgrade-1.3.0.php' ) ) {
-          include_once WLL_DIR_PATH . 'includes/updates/upgrade-1.3.0.php';
-          wll_upgrade_1_3_0();
-        }
-      }
-    }
-
     public static function text_domain(){
       load_plugin_textdomain( 'when-last-login', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
     }
@@ -192,9 +169,10 @@ class When_Last_Login {
       if ( ! current_user_can( 'manage_options' ) ) {
         wp_die( -1 );
       }
+      check_ajax_referer( 'wll_migration_status', 'nonce' );
       $status = get_option( 'wll_migration_status', array() );
       wp_send_json_success( array(
-        'complete' => empty( $status ) || $status['status'] === 'complete',
+        'complete' => empty( $status ) || ( isset( $status['status'] ) && $status['status'] === 'complete' ),
       ) );
     }
 
@@ -474,14 +452,9 @@ class When_Last_Login {
 
           if( ! empty( $when_last_login_meta ) ){
             return human_time_diff( $when_last_login_meta );
-          } else {
-            if( get_the_author_meta( 'when_last_login', $id ) === 0 ){
-              return esc_html__( 'Never', 'when-last-login' );
-            } else {
-              update_user_meta( $id, 'when_last_login', 0 );
-              return esc_html__( 'Never', 'when-last-login' );
-            }
           }
+
+          return esc_html__( 'Never', 'when-last-login' );
         } else if( $column_name == 'when_last_login_ip_address' ){
 
           $when_last_login_ip_address = get_user_meta( $id, 'wll_user_ip_address', true );
@@ -581,7 +554,7 @@ class When_Last_Login {
         }
         $last_login = get_user_meta( $user->ID, 'when_last_login', true );
         if ( ! empty( $last_login ) ) {
-            $row['when_last_login'] = date( 'Y-m-d H:i:s', $last_login );
+            $row['when_last_login'] = wp_date( 'Y-m-d H:i:s', $last_login );
         } else {
             $row['when_last_login'] = __( 'Never', 'when-last-login' );
         }
@@ -624,6 +597,7 @@ class When_Last_Login {
      * @since  1.3.0
      */
     public function wll_login_records_load() {
+      self::load_list_table();
       $list_table = new WLL_List_Table();
       $deleted = $list_table->process_bulk_action();
 
@@ -651,15 +625,16 @@ class When_Last_Login {
         );
       }
 
+      self::load_list_table();
       $list_table = new WLL_List_Table();
       $list_table->prepare_items();
 
       ?>
       <div class="wrap">
         <h1><?php esc_html_e( 'Login Records', 'when-last-login' ); ?></h1>
-        <?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
         <form method="post">
-          <input type="hidden" name="page" value="<?php echo esc_attr( isset( $_REQUEST['page'] ) ? $_REQUEST['page'] : 'wll-login-records' ); ?>" />
+          <input type="hidden" name="page" value="<?php echo esc_attr( isset( $_REQUEST['page'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['page'] ) ) : 'wll-login-records' ); ?>" />
+          <?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
           <?php $list_table->display(); ?>
         </form>
       </div>
@@ -680,14 +655,25 @@ class When_Last_Login {
 
       if( isset( $_POST['wll_save_settings'] ) ){
 
-        if( isset( $_POST['_nonce'] ) && wp_verify_nonce( $_POST['_nonce'], 'wll_settings_nonce' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+          wp_die( esc_html__( 'You do not have permission to save these settings.', 'when-last-login' ) );
+        }
 
-          $wll_settings = array();
-          $wll_settings['user_access'] = isset( $_POST['wll_login_record_user_access'] ) ? sanitize_text_field( $_POST['wll_login_record_user_access'] ) : "";
-          $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( $_POST['wll_record_user_ip_address'] ) == '1'  ? 1 : 0;
-          $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( $_POST['wll_track_all_records'] ) == '1' ? 1 : 0;
-          $wll_settings['show_wc_last_active'] = isset( $_POST['wll_show_wc_last_active'] ) && sanitize_text_field( $_POST['wll_show_wc_last_active'] ) == '1' ? 1 : 0;
-          $wll_settings['hide_admin_menu'] = isset( $_POST['wll_hide_admin_menu'] ) && sanitize_text_field( $_POST['wll_hide_admin_menu'] ) == '1' ? 1 : 0;
+        if( isset( $_POST['_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'wll_settings_nonce' ) ) {
+
+          $wll_settings = get_option( 'wll_settings', array() );
+          if ( ! is_array( $wll_settings ) ) {
+            $wll_settings = array();
+          }
+
+          if ( isset( $_POST['wll_login_record_user_access'] ) ) {
+            $wll_settings['user_access'] = sanitize_text_field( wp_unslash( $_POST['wll_login_record_user_access'] ) );
+          }
+
+          $wll_settings['record_ip_address'] = isset( $_POST['wll_record_user_ip_address'] ) && sanitize_text_field( wp_unslash( $_POST['wll_record_user_ip_address'] ) ) == '1'  ? 1 : 0;
+          $wll_settings['track_all_records'] = isset( $_POST['wll_track_all_records'] ) && sanitize_text_field( wp_unslash( $_POST['wll_track_all_records'] ) ) == '1' ? 1 : 0;
+          $wll_settings['show_wc_last_active'] = isset( $_POST['wll_show_wc_last_active'] ) && sanitize_text_field( wp_unslash( $_POST['wll_show_wc_last_active'] ) ) == '1' ? 1 : 0;
+          $wll_settings['hide_admin_menu'] = isset( $_POST['wll_hide_admin_menu'] ) && sanitize_text_field( wp_unslash( $_POST['wll_hide_admin_menu'] ) ) == '1' ? 1 : 0;
 
           $wll_settings = apply_filters( 'wll_settings_filter', $wll_settings );
 
@@ -701,9 +687,10 @@ class When_Last_Login {
             'wll-settings-updated' => '1',
           );
           if ( ! empty( $_GET['tab'] ) ) {
-            $redirect_args['tab'] = sanitize_text_field( $_GET['tab'] );
+            $redirect_args['tab'] = sanitize_text_field( wp_unslash( $_GET['tab'] ) );
           }
-          wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
+          $settings_base = ! empty( $wll_settings['hide_admin_menu'] ) ? 'options-general.php' : 'admin.php';
+          wp_safe_redirect( add_query_arg( $redirect_args, admin_url( $settings_base ) ) );
           exit;
         } else {
           wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
@@ -763,12 +750,12 @@ class When_Last_Login {
         return;
       }
 
-      if ( isset( $_REQUEST['remove_wll_ip_addresses'] ) ) {
+      if ( isset( $_POST['remove_wll_ip_addresses'] ) ) {
 
-          $nonce = isset( $_REQUEST['wll_remove_ip_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_ip_nonce'] ) : '';
+          $nonce = isset( $_POST['wll_remove_ip_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['wll_remove_ip_nonce'] ) ) : '';
           if ( $nonce && wp_verify_nonce( $nonce, 'wll_remove_ip_nonce' ) ) {
 
-            $result = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s", 'wll_user_ip_address' ) );
+            $result = class_exists( 'WLL_DB' ) ? WLL_DB::clear_all_ip_addresses() : $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s", 'wll_user_ip_address' ) );
 
             if ( $result > 0 ) {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__success' ) );
@@ -776,14 +763,14 @@ class When_Last_Login {
               add_action( 'admin_notices', array( $this, 'wll_remove_records_notice__warning' ) );
             }
           } else {
-            die( 'nonce not valid.' );
+            wp_die( esc_html__( 'Nonce is not valid', 'when-last-login' ) );
           }
         }
 
         // Remove old login records (90+ days).
-        if ( isset( $_REQUEST['wll_remove_old_records'] ) ) {
+        if ( isset( $_POST['wll_remove_old_records'] ) ) {
 
-          $nonce = isset( $_REQUEST['wll_remove_old_records_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_old_records_nonce'] ) : '';
+          $nonce = isset( $_POST['wll_remove_old_records_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['wll_remove_old_records_nonce'] ) ) : '';
           if ( wp_verify_nonce( $nonce, 'wll_remove_old_records_nonce' ) ) {
             $deleted = WLL_DB::delete_old_records( WLL_CLEANUP_DAYS );
             if ( $deleted > 0 ) {
@@ -806,9 +793,9 @@ class When_Last_Login {
         }
 
         // Remove all login records.
-        if ( isset( $_REQUEST['wll_remove_all_records'] ) ) {
+        if ( isset( $_POST['wll_remove_all_records'] ) ) {
 
-          $nonce = isset( $_REQUEST['wll_remove_all_records_nonce'] ) ? sanitize_text_field( $_REQUEST['wll_remove_all_records_nonce'] ) : '';
+          $nonce = isset( $_POST['wll_remove_all_records_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['wll_remove_all_records_nonce'] ) ) : '';
           if ( wp_verify_nonce( $nonce, 'wll_remove_all_records_nonce' ) ) {
             $deleted = WLL_DB::delete_all_records();
             if ( $deleted > 0 ) {
@@ -959,5 +946,42 @@ class When_Last_Login {
       return 'Desktop';
     }
 
+    /**
+     * Create custom tables on activation.
+     *
+     * @since 1.3.0
+     */
+    public static function activate() {
+      if ( ! class_exists( 'WLL_DB' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-wll-db.php';
+      }
+      WLL_DB::create_tables();
+    }
+
+    /**
+     * Load the login records list table class in admin only.
+     *
+     * @since 1.3.0
+     */
+    public static function load_list_table() {
+      if ( ! class_exists( 'WLL_List_Table' ) ) {
+        require_once WLL_DIR_PATH . '/includes/class-wll-list-table.php';
+      }
+    }
+
+    /**
+     * Remove custom table rows when a user is deleted.
+     *
+     * @since 1.3.0
+     *
+     * @param int $user_id User ID.
+     */
+    public static function delete_user_login_data( $user_id ) {
+      if ( class_exists( 'WLL_DB' ) ) {
+        WLL_DB::delete_user_data( $user_id );
+      }
+    }
+
 } // end class
 When_Last_Login::get_instance();
+register_activation_hook( __FILE__, array( 'When_Last_Login', 'activate' ) );

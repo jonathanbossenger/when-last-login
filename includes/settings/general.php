@@ -17,6 +17,7 @@ $show_wc_last_active = isset( $settings['show_wc_last_active'] ) && intval( $set
 $hide_admin_menu = isset( $settings['hide_admin_menu'] ) && intval( $settings['hide_admin_menu'] ) == 1;
 $woocommerce_active = class_exists( 'WooCommerce' );
 ?>
+<form method="post">
 <table class="form-table">
 	<tr>
 		<th><h2><?php esc_html_e( 'Options' , 'when-last-login' ); ?></h2></th>
@@ -34,7 +35,11 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 		<td><label>
 			<input type='checkbox' id='wll_track_all_records' value='1' name='wll_track_all_records' <?php checked( 1, $track_all_records ); ?>/>
 			<small><?php
-			echo esc_html( 'Please enable this option if using the', 'when-last-login' ) . " <a href='" . esc_url( 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/' ) . "' target='_blank'><strong>" . esc_html( 'When Last Login - User Statistics Add On', 'when-last-login' ) . "</strong></a>";
+			printf(
+				/* translators: %s: add-on name wrapped in a link */
+				esc_html__( 'Please enable this option if using the %s', 'when-last-login' ),
+				'<a href="' . esc_url( 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/' ) . '" target="_blank" rel="noopener noreferrer"><strong>' . esc_html__( 'When Last Login - User Statistics Add On', 'when-last-login' ) . '</strong></a>'
+			);
 			?></small>
 		</label></td>
 	</tr>
@@ -56,56 +61,48 @@ $woocommerce_active = class_exists( 'WooCommerce' );
 		</label></td>
 	</tr>
 
-	<?php if ( $track_all_records ) : ?>
 	<tr>
-		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
-		<td></td>
-	</tr>
-	<?php
-		$old_records_message = esc_html__( 'Are you sure you want to clear records older than 90 days?', 'when-last-login' );
-		$all_records_message = esc_html__( 'Are you sure you want to clear all login records?', 'when-last-login' );
-		$all_ip_message = esc_html__( 'Are you sure you want to remove all IP addresses?', 'when-last-login' );
-		$remove_old_nonce = wp_create_nonce( 'wll_remove_old_records_nonce' );
-		$remove_all_nonce = wp_create_nonce( 'wll_remove_all_records_nonce' );
-		$remove_ip_nonce = wp_create_nonce( 'wll_remove_ip_nonce' );
-	?>
-	<script>
-		function wll_remove_old_records(){
-			if( window.confirm('<?php echo esc_js( $old_records_message ); ?>')) {
-				window.location.href = "<?php echo esc_js( add_query_arg( array( 'wll_remove_old_records' => '1', 'wll_remove_old_records_nonce' => $remove_old_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
-			}
-		}
-		function wll_remove_all_records(){
-			if( window.confirm('<?php echo esc_js( $all_records_message ); ?>')) {
-				window.location.href = "<?php echo esc_js( add_query_arg( array( 'wll_remove_all_records' => '1', 'wll_remove_all_records_nonce' => $remove_all_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
-			}
-		}
-		function wll_remove_all_ips(){
-			if( window.confirm('<?php echo esc_js( $all_ip_message ); ?>')) {
-				window.location.href = "<?php echo esc_js( add_query_arg( array( 'remove_wll_ip_addresses' => '1', 'wll_remove_ip_nonce' => $remove_ip_nonce ), admin_url( 'admin.php?page=when-last-login-settings' ) ) ); ?>";
-			}
-		}
-	</script>
-
-	<tr>
-		<th><?php esc_html_e( 'Clear old logs (90+ days)', 'when-last-login' ); ?></th>
-		<td><a href="javascript:void(0);" onclick="wll_remove_old_records(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
-	</tr>
-
-	<tr>
-		<th><?php esc_html_e( 'Clear all login records', 'when-last-login' ); ?></th>
-		<td><a href="javascript:void(0);" onclick="wll_remove_all_records(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
-	</tr>
-
-	<tr>
-		<th><?php esc_html_e( 'Clear all IP addresses', 'when-last-login' ); ?></th>
-		<td><a href="javascript:void(0);" onclick="wll_remove_all_ips(); return false;" class="button"><?php esc_html_e( 'Run Now', 'when-last-login' ); ?></a></td>
-	</tr>
-	<?php endif; ?>
-
-	<tr>
-		<input type="hidden" name="_nonce" value="<?php echo wp_create_nonce( 'wll_settings_nonce' ); ?>">
+		<input type="hidden" name="_nonce" value="<?php echo esc_attr( wp_create_nonce( 'wll_settings_nonce' ) ); ?>">
 	    <th><input type="submit" name="wll_save_settings"  class="button-primary" value="<?php esc_attr_e('Save Settings', 'when-last-login'); ?>" /></th>
 	    <td></td>
 	</tr>
 </table>
+</form>
+<?php if ( $track_all_records ) : ?>
+<table class="form-table">
+	<tr>
+		<th><h2><?php esc_html_e( 'Tools', 'when-last-login' ); ?></h2></th>
+		<td></td>
+	</tr>
+	<tr>
+		<th><?php esc_html_e( 'Clear old logs (90+ days)', 'when-last-login' ); ?></th>
+		<td>
+			<form method="post">
+				<?php wp_nonce_field( 'wll_remove_old_records_nonce', 'wll_remove_old_records_nonce' ); ?>
+				<input type="hidden" name="wll_remove_old_records" value="1" />
+				<?php submit_button( __( 'Run Now', 'when-last-login' ), 'secondary', 'wll_remove_old_records_submit', false, array( 'onclick' => "return confirm('" . esc_js( __( 'Are you sure you want to clear records older than 90 days?', 'when-last-login' ) ) . "');" ) ); ?>
+			</form>
+		</td>
+	</tr>
+	<tr>
+		<th><?php esc_html_e( 'Clear all login records', 'when-last-login' ); ?></th>
+		<td>
+			<form method="post">
+				<?php wp_nonce_field( 'wll_remove_all_records_nonce', 'wll_remove_all_records_nonce' ); ?>
+				<input type="hidden" name="wll_remove_all_records" value="1" />
+				<?php submit_button( __( 'Run Now', 'when-last-login' ), 'secondary', 'wll_remove_all_records_submit', false, array( 'onclick' => "return confirm('" . esc_js( __( 'Are you sure you want to clear all login records?', 'when-last-login' ) ) . "');" ) ); ?>
+			</form>
+		</td>
+	</tr>
+	<tr>
+		<th><?php esc_html_e( 'Clear all IP addresses', 'when-last-login' ); ?></th>
+		<td>
+			<form method="post">
+				<?php wp_nonce_field( 'wll_remove_ip_nonce', 'wll_remove_ip_nonce' ); ?>
+				<input type="hidden" name="remove_wll_ip_addresses" value="1" />
+				<?php submit_button( __( 'Run Now', 'when-last-login' ), 'secondary', 'wll_remove_ip_submit', false, array( 'onclick' => "return confirm('" . esc_js( __( 'Are you sure you want to remove all IP addresses?', 'when-last-login' ) ) . "');" ) ); ?>
+			</form>
+		</td>
+	</tr>
+</table>
+<?php endif; ?>

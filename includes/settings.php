@@ -42,7 +42,8 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 (function($) {
 	var wllMigrationPoll = setInterval(function() {
 		$.post(ajaxurl, {
-			action: 'wll_check_migration_status'
+			action: 'wll_check_migration_status',
+			nonce: '<?php echo esc_js( wp_create_nonce( 'wll_migration_status' ) ); ?>'
 		}, function(response) {
 			if (response.success && response.data.complete) {
 				$('#wll-migration-notice').fadeOut(400, function() { $(this).remove(); });
@@ -79,10 +80,6 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 	if( isset( $_GET['tab'] ) && $_GET['tab'] == 'add-ons' ){
 		include 'settings/add-ons.php';
 	} else {
-	?>
-	<form method='POST'><table class="form-table">
-
-	<?php
 
 		$content = array(
 			'general' => 'settings/general.php',
@@ -99,9 +96,5 @@ $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migratio
 
 		}
 
-
-	?>	
-
-	</table></form>
-	<?php } ?>
+	} ?>
 </div>
