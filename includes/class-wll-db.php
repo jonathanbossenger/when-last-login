@@ -13,6 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+
+// Include migration helper.
+require_once __DIR__ . "/migration-helper.php";
 /**
  * Class WLL_DB
  *
@@ -86,6 +89,9 @@ class WLL_DB {
 		if ( version_compare( $current_version, '1.3.0', '<' ) ) {
 			self::upgrade_1_3_0();
 		}
+
+		// Resume a pending migration even if the schema version was already bumped.
+		self::maybe_resume_migration();
 
 		/**
 		 * Fires after database version check.
@@ -408,45 +414,132 @@ class WLL_DB {
 			return;
 		}
 
-		// Populate summary table from user meta.
-		self::populate_summary_table();
+		$status = get_option( 'wll_migration_status', array() );
 
-		// Check if there are posts to migrate.
-		$posts_count = self::count_posts_to_migrate();
+		// First run: populate summary and decide whether a CPT migration is needed.
+		if ( empty( $status ) || empty( $status['status'] ) ) {
+			self::populate_summary_table();
 
-		if ( $posts_count > 0 ) {
-			// Store migration status.
-			update_option( 'wll_migration_status', array(
-				'total'     => $posts_count,
-				'migrated'  => 0,
-				'started'   => current_time( 'mysql' ),
-				'status'    => 'pending',
-			) );
+			$posts_count = self::count_posts_to_migrate();
 
-			// Schedule migration.
-			if ( ! wp_next_scheduled( 'wll_migrate_login_records' ) ) {
-				wp_schedule_single_event( time() + 30, 'wll_migrate_login_records' );
+			if ( $posts_count > 0 ) {
+				update_option(
+					'wll_migration_status',
+					array(
+						'total'    => $posts_count,
+						'migrated' => 0,
+						'started'  => self::now_utc(),
+						'status'   => 'pending',
+					)
+				);
+				self::schedule_migration();
+				return;
 			}
-		} else {
-			// No posts to migrate.
-			update_option( 'wll_migration_status', array(
-				'total'     => 0,
-				'migrated'  => 0,
-				'started'   => current_time( 'mysql' ),
-				'completed' => current_time( 'mysql' ),
-				'status'    => 'complete',
-			) );
+
+			self::mark_migration_complete( 0 );
 		}
 
-		// Update database version.
-		update_option( self::VERSION_OPTION, WLL_VER );
+		if ( self::is_migration_complete() ) {
+			update_option( self::VERSION_OPTION, '1.3.0' );
 
-		/**
-		 * Fires after 1.3.0 upgrade completes.
-		 *
-		 * @since 1.3.0
-		 */
-		do_action( 'wll_upgrade_1_3_0_complete' );
+			/**
+			 * Fires after 1.3.0 upgrade completes.
+			 *
+			 * @since 1.3.0
+			 */
+			do_action( 'wll_upgrade_1_3_0_complete' );
+		}
+	}
+
+	/**
+	 * Current UTC datetime in MySQL format.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int|null $timestamp Optional unix timestamp.
+	 * @return string              UTC datetime.
+	 */
+	public static function now_utc( $timestamp = null ) {
+		return gmdate( 'Y-m-d H:i:s', null === $timestamp ? time() : (int) $timestamp );
+	}
+
+	/**
+	 * Whether CPT migration has finished (or was never needed).
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return bool
+	 */
+	public static function is_migration_complete() {
+		$status = get_option( 'wll_migration_status', array() );
+		return ! empty( $status['status'] ) && 'complete' === $status['status'];
+	}
+
+	/**
+	 * Mark migration complete and bump the schema version.
+	 *
+	 * @since  1.3.0
+	 * @access private
+	 *
+	 * @param int|null $total Optional total records.
+	 */
+	private static function mark_migration_complete( $total = null ) {
+		$status = get_option( 'wll_migration_status', array() );
+		if ( ! is_array( $status ) ) {
+			$status = array();
+		}
+
+		if ( null !== $total ) {
+			$status['total']    = absint( $total );
+			$status['migrated'] = absint( $total );
+		}
+
+		$status['status']    = 'complete';
+		$status['completed'] = self::now_utc();
+		if ( empty( $status['started'] ) ) {
+			$status['started'] = $status['completed'];
+		}
+
+		update_option( 'wll_migration_status', $status );
+		update_option( self::VERSION_OPTION, '1.3.0' );
+	}
+
+	/**
+	 * Schedule the next migration batch if one is not already queued.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param int $delay Delay in seconds.
+	 */
+	public static function schedule_migration( $delay = 30 ) {
+		$delay = absint( $delay );
+
+		if ( function_exists( 'wll_schedule_migration_batch' ) ) {
+			wll_schedule_migration_batch( $delay );
+			return;
+		}
+
+		if ( ! wp_next_scheduled( 'wll_migrate_login_records' ) ) {
+			wp_schedule_single_event( time() + $delay, 'wll_migrate_login_records' );
+		}
+	}
+
+	/**
+	 * Re-queue a pending/in-progress migration if WP-Cron dropped the event.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 */
+	public static function maybe_resume_migration() {
+		$status = get_option( 'wll_migration_status', array() );
+		if ( empty( $status['status'] ) || 'complete' === $status['status'] ) {
+			return;
+		}
+
+		self::schedule_migration( 5 );
 	}
 
 	/**
@@ -461,7 +554,7 @@ class WLL_DB {
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
 
 		// Ensure batch size constant is defined.
-		$batch_size = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
+		$batch_size = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
 
 		// Use offset-based pagination for reliability.
 		$offset = 0;
@@ -558,8 +651,8 @@ class WLL_DB {
 		set_transient( 'wll_migration_lock', true, 5 * MINUTE_IN_SECONDS );
 
 		// Ensure batch size constant is defined.
-		$default_batch = defined( 'WLL_BATCH_SIZE' ) ? WLL_BATCH_SIZE : 500;
-		$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch * 2 );
+		$default_batch = defined( "WLL_BATCH_SIZE" ) ? WLL_BATCH_SIZE : 50;
+		$batch_size = apply_filters( 'wll_migration_batch_size', $default_batch );
 
 		// Direct SQL avoids WP_Query overhead (filters, object cache, extra joins).
 		$post_ids = $wpdb->get_col(
@@ -571,9 +664,8 @@ class WLL_DB {
 		);
 
 		if ( empty( $post_ids ) ) {
-			$status['status']    = 'complete';
-			$status['completed'] = current_time( 'mysql' );
-			update_option( 'wll_migration_status', $status );
+			self::mark_migration_complete();
+			delete_transient( 'wll_migration_lock' );
 			return;
 		}
 
@@ -583,7 +675,7 @@ class WLL_DB {
 		// Fetch post data and IP meta in a single JOIN query instead of N+1 calls.
 		$posts = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT p.ID, p.post_author, p.post_date,
+				"SELECT p.ID, p.post_author, p.post_date_gmt, p.post_date,
 				        pm.meta_value AS ip_address
 				 FROM {$wpdb->posts} p
 				 LEFT JOIN {$wpdb->postmeta} pm
@@ -598,9 +690,14 @@ class WLL_DB {
 		$values       = array();
 
 		foreach ( $posts as $post ) {
+			$login_time = $post->post_date_gmt;
+			if ( empty( $login_time ) || '0000-00-00 00:00:00' === $login_time ) {
+				$login_time = get_gmt_from_date( $post->post_date );
+			}
+
 			$placeholders[] = '(%d, %s, %s)';
 			$values[]       = absint( $post->post_author );
-			$values[]       = $post->post_date;
+			$values[]       = $login_time;
 			$values[]       = sanitize_text_field( (string) $post->ip_address );
 		}
 
@@ -642,11 +739,9 @@ class WLL_DB {
 		if ( $remaining > 0 ) {
 			$status['status'] = 'in_progress';
 			update_option( 'wll_migration_status', $status );
-			wp_schedule_single_event( time() + 5, 'wll_migrate_login_records' );
+			self::schedule_migration( 5 );
 		} else {
-			$status['status']    = 'complete';
-			$status['completed'] = current_time( 'mysql' );
-			update_option( 'wll_migration_status', $status );
+			self::mark_migration_complete();
 		}
 
 		// Release lock after batch.
@@ -671,7 +766,7 @@ class WLL_DB {
 		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
 		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 
-		$now = current_time( 'mysql' );
+		$now = self::now_utc();
 
 		// Update summary table (upsert).
 		$wpdb->query(
@@ -973,6 +1068,54 @@ class WLL_DB {
 		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
 
 		return $wpdb->query( "DELETE FROM {$records_table}" );
+	}
+
+	/**
+	 * Delete all login data for a user from custom tables.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @param  int $user_id User ID.
+	 * @return int          Number of rows deleted.
+	 */
+	public static function delete_user_data( $user_id ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		$summary_table = self::get_table_name( self::SUMMARY_TABLE );
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+
+		$deleted  = (int) $wpdb->delete( $summary_table, array( 'user_id' => $user_id ), array( '%d' ) );
+		$deleted += (int) $wpdb->delete( $records_table, array( 'user_id' => $user_id ), array( '%d' ) );
+
+		return $deleted;
+	}
+
+	/**
+	 * Clear stored IP addresses from usermeta and login records.
+	 *
+	 * @since  1.3.0
+	 * @access public
+	 *
+	 * @return int Number of usermeta rows deleted.
+	 */
+	public static function clear_all_ip_addresses() {
+		global $wpdb;
+
+		$records_table = self::get_table_name( self::LOGIN_RECORDS_TABLE );
+		$wpdb->query( "UPDATE {$records_table} SET ip_address = NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		return (int) $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s",
+				'wll_user_ip_address'
+			)
+		);
 	}
 }
 
