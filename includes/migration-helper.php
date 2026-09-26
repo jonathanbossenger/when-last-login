@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! function_exists( 'wll_schedule_migration_batch' ) ) :
 /**
  * Schedule the next migration batch using Action Scheduler if available,
  * falling back to WP-Cron.
@@ -32,3 +33,4 @@ function wll_schedule_migration_batch( $delay = 5 ) {
 		}
 	}
 }
+endif;
