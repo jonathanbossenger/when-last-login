@@ -8,12 +8,14 @@
  * @since   1.3.0
  */
 
-// Prevent direct access.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Load WP_List_Table if not already loaded.
+if ( ! is_admin() ) {
+	return;
+}
+
 if ( ! class_exists( 'WP_List_Table' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
@@ -33,11 +35,13 @@ class WLL_List_Table extends WP_List_Table {
 	 * @since  1.3.0
 	 */
 	public function __construct() {
-		parent::__construct( array(
-			'singular' => __( 'Login Record', 'when-last-login' ),
-			'plural'   => __( 'Login Records', 'when-last-login' ),
-			'ajax'     => false,
-		) );
+		parent::__construct(
+			array(
+				'singular' => 'wll_login_record',
+				'plural'   => 'wll_login_records',
+				'ajax'     => false,
+			)
+		);
 	}
 
 	/**
@@ -47,7 +51,7 @@ class WLL_List_Table extends WP_List_Table {
 	 * @return array Columns array.
 	 */
 	public function get_columns() {
-		$columns = array(
+		return array(
 			'cb'         => '<input type="checkbox" />',
 			'user'       => __( 'User', 'when-last-login' ),
 			'login_time' => __( 'Login Time', 'when-last-login' ),
@@ -56,8 +60,6 @@ class WLL_List_Table extends WP_List_Table {
 			'os'         => __( 'Operating System', 'when-last-login' ),
 			'device'     => __( 'Device', 'when-last-login' ),
 		);
-
-		return $columns;
 	}
 
 	/**
@@ -89,7 +91,7 @@ class WLL_List_Table extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'login_time':
-				return get_date_from_gmt( $item->login_time, 'Y-m-d H:i:s' );
+				return esc_html( get_date_from_gmt( $item->login_time, 'Y-m-d H:i:s' ) );
 
 			case 'ip_address':
 				if ( ! empty( $item->ip_address ) ) {
@@ -141,13 +143,11 @@ class WLL_List_Table extends WP_List_Table {
 			);
 		}
 
-		$user_link = sprintf(
+		return sprintf(
 			'<a href="%s">%s</a>',
 			esc_url( add_query_arg( 'user_id', $user->ID, admin_url( 'user-edit.php' ) ) ),
 			esc_html( $user->display_name )
 		);
-
-		return $user_link;
 	}
 
 	/**
@@ -170,18 +170,24 @@ class WLL_List_Table extends WP_List_Table {
 	 * @return int Number of records deleted.
 	 */
 	public function process_bulk_action() {
-		if ( 'delete' === $this->current_action() ) {
-			$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( $_REQUEST['_wpnonce'] ) : '';
+		if ( 'delete' !== $this->current_action() ) {
+			return 0;
+		}
 
-			if ( ! wp_verify_nonce( $nonce, 'bulk-' . $this->_args['plural'] ) ) {
-				wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
-			}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to delete login records.', 'when-last-login' ) );
+		}
 
-			$record_ids = isset( $_REQUEST['record_id'] ) ? array_map( 'intval', $_REQUEST['record_id'] ) : array();
+		$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
 
-			if ( ! empty( $record_ids ) ) {
-				return WLL_DB::delete_records( $record_ids );
-			}
+		if ( ! wp_verify_nonce( $nonce, 'bulk-' . $this->_args['plural'] ) ) {
+			wp_die( esc_html__( 'Invalid nonce', 'when-last-login' ) );
+		}
+
+		$record_ids = isset( $_REQUEST['record_id'] ) ? array_map( 'intval', (array) $_REQUEST['record_id'] ) : array();
+
+		if ( ! empty( $record_ids ) ) {
+			return WLL_DB::delete_records( $record_ids );
 		}
 
 		return 0;
@@ -195,72 +201,116 @@ class WLL_List_Table extends WP_List_Table {
 	public function prepare_items() {
 		global $wpdb;
 
-		// Note: Bulk actions are processed in wll_login_records_callback() before redirect.
-
-		// Columns.
-		$columns = $this->get_columns();
-		$hidden = array();
-		$sortable = $this->get_sortable_columns();
+		$columns               = $this->get_columns();
+		$hidden                = array();
+		$sortable              = $this->get_sortable_columns();
 		$this->_column_headers = array( $columns, $hidden, $sortable );
 
-		// Pagination.
 		$per_page = $this->get_items_per_page( 'wll_records_per_page', 20 );
-		$page = $this->get_pagenum();
-		$offset = ( $page - 1 ) * $per_page;
+		$page     = $this->get_pagenum();
+		$offset   = ( $page - 1 ) * $per_page;
 
-		// Sorting.
-		$orderby = ! empty( $_REQUEST['orderby'] ) ? sanitize_sql_orderby( $_REQUEST['orderby'] ) : 'login_time';
-		$order = ! empty( $_REQUEST['order'] ) ? sanitize_text_field( $_REQUEST['order'] ) : 'DESC';
+		$orderby = ! empty( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : 'login_time';
+		$order   = ! empty( $_REQUEST['order'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_REQUEST['order'] ) ) ) : 'DESC';
 
-		// Map orderby to valid columns.
 		$valid_orderby = array( 'user_id', 'login_time', 'ip_address', 'browser', 'os', 'device' );
 		if ( ! in_array( $orderby, $valid_orderby, true ) ) {
 			$orderby = 'login_time';
 		}
 
-		if ( ! in_array( strtoupper( $order ), array( 'ASC', 'DESC' ), true ) ) {
+		if ( ! in_array( $order, array( 'ASC', 'DESC' ), true ) ) {
 			$order = 'DESC';
 		}
 
 		$records_table = WLL_DB::get_table_name( WLL_DB::LOGIN_RECORDS_TABLE );
+		$where         = array();
+		$values        = array();
+		$search        = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 
-		// Search.
-		$search = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( $_REQUEST['s'] ) : '';
-		$search_sql = '';
+		if ( '' !== $search ) {
+			$like         = '%' . $wpdb->esc_like( $search ) . '%';
+			$search_parts = array(
+				'ip_address LIKE %s',
+				'browser LIKE %s',
+				'os LIKE %s',
+				'device LIKE %s',
+			);
+			$values[]     = $like;
+			$values[]     = $like;
+			$values[]     = $like;
+			$values[]     = $like;
 
-		if ( ! empty( $search ) ) {
-			$search_user = get_user_by( 'login', $search );
-			if ( $search_user ) {
-				$search_sql = $wpdb->prepare( ' WHERE user_id = %d', $search_user->ID );
-			} else {
-				$search_sql = $wpdb->prepare(
-					' WHERE ip_address LIKE %s OR browser LIKE %s OR os LIKE %s OR device LIKE %s',
-					'%' . $wpdb->esc_like( $search ) . '%',
-					'%' . $wpdb->esc_like( $search ) . '%',
-					'%' . $wpdb->esc_like( $search ) . '%',
-					'%' . $wpdb->esc_like( $search ) . '%'
-				);
+			$user_ids = $this->get_search_user_ids( $search );
+			if ( ! empty( $user_ids ) ) {
+				$placeholders   = implode( ',', array_fill( 0, count( $user_ids ), '%d' ) );
+				$search_parts[] = "user_id IN ($placeholders)";
+				foreach ( $user_ids as $user_id ) {
+					$values[] = $user_id;
+				}
+			}
+
+			$where[] = '(' . implode( ' OR ', $search_parts ) . ')';
+		}
+
+		$where_sql = ! empty( $where ) ? 'WHERE ' . implode( ' AND ', $where ) : '';
+		$count_sql = "SELECT COUNT(*) FROM $records_table $where_sql";
+
+		if ( ! empty( $values ) ) {
+			$total_items = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $values ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		} else {
+			$total_items = (int) $wpdb->get_var( $count_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		}
+
+		$query_sql    = "SELECT * FROM $records_table $where_sql ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+		$query_values = array_merge( $values, array( $per_page, $offset ) );
+
+		$this->items = $wpdb->get_results( $wpdb->prepare( $query_sql, $query_values ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		$this->set_pagination_args(
+			array(
+				'total_items' => $total_items,
+				'per_page'    => $per_page,
+				'total_pages' => $total_items ? (int) ceil( $total_items / $per_page ) : 0,
+			)
+		);
+	}
+
+	/**
+	 * Resolve user IDs matching a search term.
+	 *
+	 * @since  1.3.0
+	 *
+	 * @param  string $search Search term.
+	 * @return int[]
+	 */
+	private function get_search_user_ids( $search ) {
+		$ids = array();
+
+		if ( is_numeric( $search ) ) {
+			$ids[] = absint( $search );
+		}
+
+		foreach ( array( 'login', 'email', 'slug' ) as $field ) {
+			$user = get_user_by( $field, $search );
+			if ( $user ) {
+				$ids[] = (int) $user->ID;
 			}
 		}
 
-		// Total items.
-		$total_items = $wpdb->get_var( "SELECT COUNT(*) FROM $records_table $search_sql" );
-
-		// Get items.
-		$this->items = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM $records_table $search_sql ORDER BY $orderby $order LIMIT %d OFFSET %d",
-				$per_page,
-				$offset
+		$users = get_users(
+			array(
+				'search'         => '*' . $search . '*',
+				'search_columns' => array( 'user_login', 'user_email', 'user_nicename', 'display_name' ),
+				'fields'         => 'ID',
+				'number'         => 50,
 			)
 		);
 
-		// Pagination.
-		$this->set_pagination_args( array(
-			'total_items' => $total_items,
-			'per_page'    => $per_page,
-			'total_pages' => ceil( $total_items / $per_page ),
-		) );
+		foreach ( $users as $user_id ) {
+			$ids[] = (int) $user_id;
+		}
+
+		return array_values( array_unique( array_filter( $ids ) ) );
 	}
 
 	/**
@@ -270,29 +320,5 @@ class WLL_List_Table extends WP_List_Table {
 	 */
 	public function no_items() {
 		esc_html_e( 'No login records found.', 'when-last-login' );
-	}
-
-	/**
-	 * Display the search box.
-	 *
-	 * @since  1.3.0
-	 *
-	 * @param  string $text     Button text.
-	 * @param  string $input_id Input ID.
-	 */
-	public function search_box( $text, $input_id ) {
-		if ( empty( $_REQUEST['s'] ) && ! $this->has_items() ) {
-			return;
-		}
-
-		$input_id = $input_id . '-search-input';
-
-		?>
-		<p class="search-box">
-			<label class="screen-reader-text" for="<?php echo esc_attr( $input_id ); ?>"><?php echo esc_html( $text ); ?>:</label>
-			<input type="search" id="<?php echo esc_attr( $input_id ); ?>" name="s" value="<?php _admin_search_query(); ?>" />
-			<?php submit_button( $text, '', '', false, array( 'id' => 'search-submit' ) ); ?>
-		</p>
-		<?php
 	}
 }

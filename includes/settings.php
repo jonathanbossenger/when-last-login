@@ -24,6 +24,12 @@ $tabs = array(
 	),
 );
 
+$wll_tab_settings = get_option( 'wll_settings', array() );
+$wll_track_all_records = ! isset( $wll_tab_settings['track_all_records'] ) || intval( $wll_tab_settings['track_all_records'] ) === 1;
+if ( ! $wll_track_all_records ) {
+	unset( $tabs['login-records'] );
+}
+
 $tabs = apply_filters( 'wll_settings_page_tabs', $tabs );
 
 // Add Ons should always render last, regardless of what filters add/reorder.
@@ -52,7 +58,7 @@ $wll_migration_status = get_option( 'wll_migration_status', array() );
 $wll_migration_active = ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] ) && $wll_migration_status['status'] !== 'complete';
 
 // Handle migration restart.
-if ( isset( $_GET['wll_restart_migration'] ) && check_admin_referer( 'wll_restart_migration' ) ) {
+if ( isset( $_POST['wll_restart_migration'] ) && current_user_can( 'manage_options' ) && check_admin_referer( 'wll_restart_migration' ) ) {
 	delete_option( 'wll_migration_status' );
 	delete_option( 'wll_db_version' );
 	delete_transient( 'wll_migration_lock' );
@@ -104,7 +110,8 @@ if ( ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] 
 (function($) {
 	var wllMigrationPoll = setInterval(function() {
 		$.post(ajaxurl, {
-			action: 'wll_check_migration_status'
+			action: 'wll_check_migration_status',
+			nonce: '<?php echo esc_js( wp_create_nonce( 'wll_migration_status' ) ); ?>'
 		}, function(response) {
 			if (response.success && response.data.complete) {
 				$('#wll-migration-notice').fadeOut(400, function() { $(this).remove(); });
@@ -130,9 +137,11 @@ if ( ! empty( $wll_migration_status ) && isset( $wll_migration_status['status'] 
 		?>
 	</p>
 	<p>
-		<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=when-last-login-settings&wll_restart_migration=1' ), 'wll_restart_migration' ) ); ?>" class="button button-primary">
-			<?php esc_html_e( 'Restart Migration', 'when-last-login' ); ?>
-		</a>
+		<form method="post" style="display:inline;">
+			<?php wp_nonce_field( 'wll_restart_migration' ); ?>
+			<input type="hidden" name="wll_restart_migration" value="1" />
+			<?php submit_button( __( 'Restart Migration', 'when-last-login' ), 'primary', 'wll_restart_migration_submit', false ); ?>
+		</form>
 	</p>
 </div>
 <?php endif; ?>
@@ -242,18 +251,14 @@ if ( $wll_migration_complete && version_compare( $wll_db_version_check, '1.3.0',
 		$list_table->prepare_items();
 		?>
 		<h1><?php esc_html_e( 'Login Records', 'when-last-login' ); ?></h1>
-		<?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
 		<form method="post">
 			<input type="hidden" name="page" value="when-last-login-settings" />
 			<input type="hidden" name="tab" value="login-records" />
+			<?php $list_table->search_box( __( 'Search', 'when-last-login' ), 'wll-records' ); ?>
 			<?php $list_table->display(); ?>
 		</form>
 		<?php
 	} else {
-	?>
-	<form method='POST'><table class="form-table">
-
-	<?php
 
 		$content = array(
 			'general' => 'settings/general.php',
@@ -270,9 +275,5 @@ if ( $wll_migration_complete && version_compare( $wll_db_version_check, '1.3.0',
 
 		}
 
-
-	?>	
-
-	</table></form>
-	<?php } ?>
+	} ?>
 </div>
