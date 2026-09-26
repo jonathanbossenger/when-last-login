@@ -42,6 +42,7 @@ class When_Last_Login {
       include WLL_DIR_PATH . '/includes/lib/IpAnonymizer.php';
       include WLL_DIR_PATH . '/includes/privacy-policy.php';
       include WLL_DIR_PATH . '/includes/class-wll-db.php';
+      include WLL_DIR_PATH . '/includes/migration-helper.php';
 
       add_action( 'admin_init', array( $this, 'admin_init' ) );
       add_action( 'plugins_loaded', array( $this, 'text_domain' ) );
