@@ -542,9 +542,9 @@ class When_Last_Login {
         $wll_widget_settings = get_option( 'wll_settings' );
         $wll_widget_track_all = ! isset( $wll_widget_settings['track_all_records'] ) || intval( $wll_widget_settings['track_all_records'] ) === 1;
         ?>
-        <a href="<?php echo admin_url( 'users.php?orderby=when_last_login&order=desc' ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
+        <a href="<?php echo esc_url( admin_url( 'users.php?orderby=when_last_login&order=desc' ) ); ?>"><?php esc_html_e( 'View All Users', 'when-last-login' ); ?></a>
         <?php if ( $wll_widget_track_all ) : ?>
-        | <a href="<?php echo admin_url( 'admin.php?page=wll-login-records' ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); ?></a>
+        | <a href="<?php echo esc_url( admin_url( 'admin.php?page=wll-login-records' ) ); ?>"><?php esc_html_e( 'View Login Records', 'when-last-login' ); ?></a>
         <?php endif; ?>
         <?php
 
@@ -975,21 +975,38 @@ class When_Last_Login {
 
     public static function wll_get_user_ip_address(){
 
+      $candidates = array();
+
       if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
-      } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-        $ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
-      } else {
-        $ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+        $candidates[] = wp_unslash( $_SERVER['HTTP_CLIENT_IP'] );
+      }
+
+      if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+        foreach ( explode( ',', wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) as $part ) {
+          $candidates[] = trim( $part );
+        }
+      }
+
+      if ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+        $candidates[] = wp_unslash( $_SERVER['REMOTE_ADDR'] );
+      }
+
+      $ip = '';
+      foreach ( $candidates as $candidate ) {
+        $candidate = sanitize_text_field( $candidate );
+        if ( $candidate && filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+          $ip = $candidate;
+          break;
+        }
       }
 
       $ip = apply_filters( 'wll_user_ip_address', $ip );
 
       if ( apply_filters( 'wll_force_anon_ip', false ) ) {
         return $ip;
-      } else {
-        return IpAnonymizer::anonymizeIp( $ip );
       }
+
+      return IpAnonymizer::anonymizeIp( $ip );
     }
 
     /**
