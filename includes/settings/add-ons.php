@@ -3,93 +3,205 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
 /**
  * Add-ons / Extensions page for When Last Login.
  *
- * Add-ons are hardcoded here for reliability, security, and full control
- * over layout and styling.  Edit the $wll_add_ons array below to
- * add, remove, or update products.
+ * Catalog is fetched as JSON from yoohooplugins.com and cached.
+ * A local fallback list is used if the request fails.
  */
 
-$wll_add_ons = array(
+/**
+ * Local fallback catalog used when the remote API is unavailable.
+ *
+ * @return array<int,array<string,string>>
+ */
+function wll_get_add_ons_fallback() {
+	return array(
+		array(
+			'name'        => __( 'Export User Records', 'when-last-login' ),
+			'description' => __( 'Export user records into a CSV or JSON file in seconds.', 'when-last-login' ),
+			'icon'        => 'dashicons-download',
+			'url'         => 'https://wordpress.org/plugins/when-last-login-export-user-records/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'free',
+			'badge'       => __( 'Free', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Welcome Emails', 'when-last-login' ),
+			'description' => __( 'Send a welcome email to your visitors when logging in for the first time.', 'when-last-login' ),
+			'icon'        => 'dashicons-email-alt',
+			'url'         => 'https://wordpress.org/plugins/when-last-login-welcome-email-add-on/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'free',
+			'badge'       => __( 'Free', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'User Statistics', 'when-last-login' ),
+			'description' => __( 'Get detailed reports on what sort of login activity happens on your website.', 'when-last-login' ),
+			'icon'        => 'dashicons-chart-bar',
+			'url'         => 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'premium',
+			'badge'       => __( 'Premium', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Slack Notifications', 'when-last-login' ),
+			'description' => __( 'Get notified on a Slack channel whenever a user logs into your WordPress site.', 'when-last-login' ),
+			'icon'        => 'dashicons-format-chat',
+			'url'         => 'https://yoohooplugins.com/plugins/when-last-login-slack-notifications/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'premium',
+			'badge'       => __( 'Premium', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'When Last Login Pro', 'when-last-login' ),
+			'description' => __( 'Get access to Slack Notifications, User Statistics & the Zapier Integration at a discounted rate.', 'when-last-login' ),
+			'icon'        => 'dashicons-archive',
+			'url'         => 'https://yoohooplugins.com/plugins/when-last-login-pro/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'new',
+			'badge'       => __( 'New', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Lead Times for WooCommerce', 'when-last-login' ),
+			'description' => __( 'Display a clear lead time for your WooCommerce products and help customers decide whether to place an order.', 'when-last-login' ),
+			'icon'        => 'dashicons-clock',
+			'url'         => 'https://yoohooplugins.com/plugins/lead-times-for-woocommerce/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'premium',
+			'badge'       => __( 'Premium', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Name Your Price for WooCommerce', 'when-last-login' ),
+			'description' => __( 'Let customers choose the price they would like to pay for products or services directly on your WooCommerce store.', 'when-last-login' ),
+			'icon'        => 'dashicons-tag',
+			'url'         => 'https://yoohooplugins.com/plugins/name-your-price-woocommerce/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'premium',
+			'badge'       => __( 'Premium', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Paid Memberships Pro PDF Invoices', 'when-last-login' ),
+			'description' => __( 'Automatically generate and email PDF invoices for Paid Memberships Pro orders.', 'when-last-login' ),
+			'icon'        => 'dashicons-media-document',
+			'url'         => 'https://yoohooplugins.com/plugins/paid-memberships-pro-pdf-invoices/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'premium',
+			'badge'       => __( 'Premium', 'when-last-login' ),
+		),
+		array(
+			'name'        => __( 'Zapier & Webhooks Integration for WordPress', 'when-last-login' ),
+			'description' => __( 'Automatically sync your WordPress users and other data to thousands of applications.', 'when-last-login' ),
+			'icon'        => 'dashicons-randomize',
+			'url'         => 'https://yoohooplugins.com/plugins/zapier-integration/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
+			'badge_type'  => 'popular',
+			'badge'       => __( 'Popular', 'when-last-login' ),
+		),
+	);
+}
 
-	// Free Add Ons
-	array(
-		'name'        => __( 'Export User Records', 'when-last-login' ),
-		'description' => __( 'Export user records into a CSV or JSON file in seconds.', 'when-last-login' ),
-		'icon'        => 'dashicons-download',
-		'url'         => 'https://wordpress.org/plugins/when-last-login-export-user-records/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'free',
-		'badge'       => __( 'Free', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Welcome Emails', 'when-last-login' ),
-		'description' => __( 'Send a welcome email to your visitors when logging in for the first time.', 'when-last-login' ),
-		'icon'        => 'dashicons-email-alt',
-		'url'         => 'https://wordpress.org/plugins/when-last-login-welcome-email-add-on/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'free',
-		'badge'       => __( 'Free', 'when-last-login' ),
-	),
+/**
+ * Sanitize one remote catalog item.
+ *
+ * @param mixed $item Raw item.
+ * @return array<string,string>|null
+ */
+function wll_sanitize_remote_addon( $item ) {
+	if ( ! is_array( $item ) ) {
+		return null;
+	}
 
-	// Premium Add Ons
-	array(
-		'name'        => __( 'User Statistics', 'when-last-login' ),
-		'description' => __( 'Get detailed reports on what sort of login activity happens on your website.', 'when-last-login' ),
-		'icon'        => 'dashicons-chart-bar',
-		'url'         => 'https://yoohooplugins.com/plugins/when-last-login-user-statistics/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'premium',
-		'badge'       => __( 'Premium', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Slack Notifications', 'when-last-login' ),
-		'description' => __( 'Get notified on a Slack channel whenever a user logs into your WordPress site.', 'when-last-login' ),
-		'icon'        => 'dashicons-format-chat',
-		'url'         => 'https://yoohooplugins.com/plugins/when-last-login-slack-notifications/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'premium',
-		'badge'       => __( 'Premium', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'When Last Login Pro', 'when-last-login' ),
-		'description' => __( 'Get access to Slack Notifications, User Statistics & the Zapier Integration at a discounted rate.', 'when-last-login' ),
-		'icon'        => 'dashicons-archive',
-		'url'         => 'https://yoohooplugins.com/plugins/when-last-login-pro/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'new',
-		'badge'       => __( 'New', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Lead Times for WooCommerce', 'when-last-login' ),
-		'description' => __( 'Display a clear lead time for your WooCommerce products and help customers decide whether to place an order.', 'when-last-login' ),
-		'icon'        => 'dashicons-clock',
-		'url'         => 'https://yoohooplugins.com/plugins/lead-times-for-woocommerce/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'premium',
-		'badge'       => __( 'Premium', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Name Your Price for WooCommerce', 'when-last-login' ),
-		'description' => __( 'Let customers choose the price they would like to pay for products or services directly on your WooCommerce store.', 'when-last-login' ),
-		'icon'        => 'dashicons-tag',
-		'url'         => 'https://yoohooplugins.com/plugins/name-your-price-woocommerce/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'premium',
-		'badge'       => __( 'Premium', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Paid Memberships Pro PDF Invoices', 'when-last-login' ),
-		'description' => __( 'Automatically generate and email PDF invoices for Paid Memberships Pro orders.', 'when-last-login' ),
-		'icon'        => 'dashicons-media-document',
-		'url'         => 'https://yoohooplugins.com/plugins/paid-memberships-pro-pdf-invoices/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'premium',
-		'badge'       => __( 'Premium', 'when-last-login' ),
-	),
-	array(
-		'name'        => __( 'Zapier & Webhooks Integration for WordPress', 'when-last-login' ),
-		'description' => __( 'Automatically sync your WordPress users and other data to thousands of applications.', 'when-last-login' ),
-		'icon'        => 'dashicons-randomize',
-		'url'         => 'https://yoohooplugins.com/plugins/zapier-integration/?utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons',
-		'badge_type'  => 'popular',
-		'badge'       => __( 'Popular', 'when-last-login' ),
-	),
+	$name = isset( $item['name'] ) ? sanitize_text_field( $item['name'] ) : '';
+	$url  = isset( $item['url'] ) ? esc_url_raw( $item['url'] ) : '';
+	if ( '' === $name || '' === $url ) {
+		return null;
+	}
 
-);
+	if ( 0 !== strpos( $url, 'https://' ) && 0 !== strpos( $url, 'http://' ) ) {
+		return null;
+	}
+
+	$icon = isset( $item['icon'] ) ? sanitize_html_class( $item['icon'] ) : 'dashicons-admin-plugins';
+	if ( ! preg_match( '/^dashicons-[a-z0-9-]+$/', $icon ) ) {
+		$icon = 'dashicons-admin-plugins';
+	}
+
+	$allowed_badges = array( 'free', 'premium', 'popular', 'new', 'bundle' );
+	$badge_type     = isset( $item['badge_type'] ) ? sanitize_key( $item['badge_type'] ) : 'premium';
+	if ( ! in_array( $badge_type, $allowed_badges, true ) ) {
+		$badge_type = 'premium';
+	}
+
+	$badge = isset( $item['badge'] ) ? sanitize_text_field( $item['badge'] ) : '';
+	if ( '' === $badge ) {
+		$badge_labels = array(
+			'free'    => __( 'Free', 'when-last-login' ),
+			'premium' => __( 'Premium', 'when-last-login' ),
+			'popular' => __( 'Popular', 'when-last-login' ),
+			'new'     => __( 'New', 'when-last-login' ),
+			'bundle'  => __( 'Bundle', 'when-last-login' ),
+		);
+		$badge = $badge_labels[ $badge_type ];
+	}
+
+	if ( false === strpos( $url, 'utm_source=' ) ) {
+		$separator = ( false === strpos( $url, '?' ) ) ? '?' : '&';
+		$url      .= $separator . 'utm_source=when-last-login&utm_medium=plugin&utm_campaign=add-ons';
+	}
+
+	return array(
+		'name'        => $name,
+		'description' => isset( $item['description'] ) ? sanitize_text_field( $item['description'] ) : '',
+		'icon'        => $icon,
+		'url'         => $url,
+		'badge_type'  => $badge_type,
+		'badge'       => $badge,
+	);
+}
+
+/**
+ * Fetch the add-ons catalog, falling back to the local list.
+ *
+ * @return array<int,array<string,string>>
+ */
+function wll_get_add_ons() {
+	$cached = get_transient( 'wll_add_ons_catalog_v2' );
+	if ( is_array( $cached ) && ! empty( $cached ) ) {
+		return $cached;
+	}
+
+	$response = wp_remote_get(
+		'https://yoohooplugins.com/api/add-ons/products.php?plugin=when-last-login',
+		array(
+			'timeout'   => 8,
+			'sslverify' => true,
+			'headers'   => array(
+				'Accept' => 'application/json',
+			),
+		)
+	);
+
+	if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		return wll_get_add_ons_fallback();
+	}
+
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+	if ( ! is_array( $body ) || empty( $body['items'] ) || ! is_array( $body['items'] ) ) {
+		return wll_get_add_ons_fallback();
+	}
+
+	$addons = array();
+	foreach ( $body['items'] as $item ) {
+		$addon = wll_sanitize_remote_addon( $item );
+		if ( $addon ) {
+			$addons[] = $addon;
+		}
+	}
+
+	if ( empty( $addons ) ) {
+		return wll_get_add_ons_fallback();
+	}
+
+	set_transient( 'wll_add_ons_catalog_v2', $addons, 12 * HOUR_IN_SECONDS );
+
+	return $addons;
+}
+
+$wll_add_ons = apply_filters( 'wll_add_ons_list', wll_get_add_ons() );
+
 ?>
 
 <style>
@@ -282,6 +394,7 @@ $wll_add_ons = array(
 	.wll-addon-card__badge--green  { background: #00a32a; }
 	.wll-addon-card__badge--orange { background: #d97706; }
 	.wll-addon-card__badge--purple { background: #7c3aed; }
+	.wll-addon-card__badge--blue   { background: #2563eb; }
 
 	/* ── Icon ── */
 	.wll-addon-card__icon {
@@ -432,7 +545,8 @@ $wll_add_ons = array(
 						'free'    => 'wll-addon-card__badge--green',
 						'popular' => 'wll-addon-card__badge--orange',
 						'premium' => 'wll-addon-card__badge--purple',
-						'new'     => '',
+						'new'     => 'wll-addon-card__badge--blue',
+						'bundle'  => 'wll-addon-card__badge--orange',
 					);
 					$badge_class = isset( $badge_type_map[ $addon['badge_type'] ] ) ? $badge_type_map[ $addon['badge_type'] ] : '';
 					?>
