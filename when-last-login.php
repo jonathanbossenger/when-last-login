@@ -66,6 +66,8 @@ class When_Last_Login {
       add_action( 'wp_ajax_wll_migration_runner_status', array( $this, 'wll_migration_runner_status' ) );
       add_action( 'wp_ajax_wll_migration_run_batch', array( $this, 'wll_migration_run_batch' ) );
       add_action( 'wp_ajax_wll_migration_reset', array( $this, 'wll_migration_reset' ) );
+      add_action( 'admin_menu', array( $this, 'wll_register_migration_runner_page' ), 9 );
+      add_action( 'admin_notices', array( $this, 'wll_migration_needed_notice' ) );
 
       //Setting up columns.
       add_filter( 'manage_users_columns', array( $this, 'column_header'), 10, 1 );
@@ -177,6 +179,72 @@ class When_Last_Login {
       wp_send_json_success( array(
         'complete' => empty( $status ) || ( isset( $status['status'] ) && $status['status'] === 'complete' ),
       ) );
+    }
+
+    /**
+     * Register the migration runner as a hidden admin page.
+     *
+     * Linked from a notice on When Last Login screens when CPT records remain.
+     *
+     * @since 1.3.0
+     */
+    public function wll_register_migration_runner_page() {
+      add_submenu_page(
+        null,
+        esc_html__( 'Migration Runner', 'when-last-login' ),
+        '',
+        'manage_options',
+        'wll-migration-runner',
+        array( $this, 'wll_migration_runner_callback' )
+      );
+    }
+
+    /**
+     * Notice on When Last Login admin pages when records still need migrating.
+     *
+     * @since 1.3.0
+     */
+    public function wll_migration_needed_notice() {
+      if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+      }
+
+      $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+      if ( ! in_array( $page, array( 'when-last-login-settings', 'wll-login-records' ), true ) ) {
+        return;
+      }
+
+      if ( ! class_exists( 'WLL_DB' ) ) {
+        return;
+      }
+
+      $remaining = (int) WLL_DB::count_posts_to_migrate();
+      if ( $remaining < 1 ) {
+        return;
+      }
+
+      $url = admin_url( 'admin.php?page=wll-migration-runner' );
+      ?>
+      <div class="notice notice-warning">
+        <p>
+          <?php
+          printf(
+            esc_html(
+              /* translators: %s: number of records */
+              _n(
+                'When Last Login needs to migrate %s login record to the new storage format.',
+                'When Last Login needs to migrate %s login records to the new storage format.',
+                $remaining,
+                'when-last-login'
+              )
+            ),
+            esc_html( number_format_i18n( $remaining ) )
+          );
+          ?>
+          <a class="button button-primary" href="<?php echo esc_url( $url ); ?>" style="margin-left:8px;"><?php esc_html_e( 'Run Migration', 'when-last-login' ); ?></a>
+        </p>
+      </div>
+      <?php
     }
 
     /**
@@ -705,7 +773,6 @@ class When_Last_Login {
 
       add_submenu_page( 'when-last-login-settings', esc_html__('Add Ons', 'when-last-login'), __('Add Ons', 'when-last-login'), 'manage_options', 'when-last-login-settings&tab=add-ons', array( $this, 'wll_settings_callback' ) );
 
-      add_submenu_page( 'when-last-login-settings', esc_html__('Migration Runner', 'when-last-login'), __('Migration Runner', 'when-last-login'), 'manage_options', 'wll-migration-runner', array( $this, 'wll_migration_runner_callback' ) );
       do_action( 'wll_settings_admin_menu_item' );
 
     }
